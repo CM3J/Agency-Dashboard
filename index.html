@@ -25,10 +25,12 @@
 </head>
 <body>
     <div id="root">
+        <!-- Static Loading Fallback -->
         <div style="height: 100vh; display: flex; align-items: center; justify-content: center; text-align: center; color: #64748b;">
-            <div id="loading-fallback">
-                <p style="font-weight: 900; letter-spacing: -0.025em; font-size: 1.5rem; color: #0f172a;">INITIALIZING SYSTEM</p>
-                <p style="font-size: 0.875rem; margin-top: 0.5rem;">If this screen stays for more than 5 seconds, check your connection.</p>
+            <div>
+                <div style="width: 40px; height: 40px; border: 4px solid #e2e8f0; border-top-color: #0f172a; border-radius: 50%; animation: spin 1s linear infinite; margin: 0 auto 20px;"></div>
+                <p style="font-weight: 900; letter-spacing: -0.025em; font-size: 1.5rem; color: #0f172a;">BOOTING CONSOLE</p>
+                <style>@keyframes spin { to { transform: rotate(360deg); } }</style>
             </div>
         </div>
     </div>
@@ -82,14 +84,14 @@
             ]
         };
 
-        // --- 2. COMPONENTS ---
+        // --- 2. UI COMPONENTS ---
         const Icon = ({ name, size = 20, className = "" }) => {
             const icons = {
-                Lock: <g><rect width="18" height="11" x="3" y="11" rx="2" ry="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" /></g>,
-                Dashboard: <g><rect width="7" height="9" x="3" y="3" rx="1" /><rect width="7" height="5" x="14" y="3" rx="1" /><rect width="7" height="9" x="14" y="12" rx="1" /><rect width="7" height="5" x="3" y="16" rx="1" /></g>,
+                Lock: <Fragment><rect width="18" height="11" x="3" y="11" rx="2" ry="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" /></Fragment>,
+                Dashboard: <Fragment><rect width="7" height="9" x="3" y="3" rx="1" /><rect width="7" height="5" x="14" y="3" rx="1" /><rect width="7" height="9" x="14" y="12" rx="1" /><rect width="7" height="5" x="3" y="16" rx="1" /></Fragment>,
                 Cloud: <path d="M17.5 19c2.5 0 4.5-2 4.5-4.5 0-2.3-1.8-4.3-4-4.5a7 7 0 1 0-13.5 1.5c-2.2.2-4 2.2-4 4.5C.5 17 2.5 19 5 19h12.5z" />,
-                Search: <g><circle cx="11" cy="11" r="8" /><path d="m21 21-4.3-4.3" /></g>,
-                UserPlus: <g><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><line x1="19" x2="19" y1="8" y2="14" /><line x1="16" x2="22" y1="11" y2="11" /></g>,
+                Search: <Fragment><circle cx="11" cy="11" r="8" /><path d="m21 21-4.3-4.3" /></Fragment>,
+                UserPlus: <Fragment><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><line x1="19" x2="19" y1="8" y2="14" /><line x1="16" x2="22" y1="11" y2="11" /></Fragment>,
                 TrendingUp: <path d="m22 7-8.5 8.5L9 11l-7 7M16 7h6v6" />,
                 TrendingDown: <path d="m22 17-8.5-8.5L9 13l-7-7M16 17h6v-6" />,
                 X: <path d="M18 6 6 18M6 6l12 12" />,
@@ -97,8 +99,8 @@
                 Reset: <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8M3 3v5h5" />,
                 History: <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8M3 3v5h5" />,
                 Plus: <path d="M12 5v14M5 12h14" />,
-                AlertTriangle: <g><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z" /><line x1="12" x2="12" y1="9" y2="13" /><line x1="12" x2="12.01" y1="17" y2="17" /></g>,
-                User: <g><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2" /><circle cx="12" cy="7" r="4" /></g>,
+                AlertTriangle: <Fragment><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z" /><line x1="12" x2="12" y1="9" y2="13" /><line x1="12" x2="12.01" y1="17" y2="17" /></Fragment>,
+                User: <Fragment><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2" /><circle cx="12" cy="7" r="4" /></Fragment>,
                 Sticky: <path d="M12 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7M14 3l7 7M14 3v7h7" />,
             };
             return (
@@ -127,9 +129,10 @@
             );
         };
 
-        // --- 3. MAIN APP ---
+        // --- 4. MAIN APP ---
         function App() {
-            const [authenticated, setAuthenticated] = useState(false);
+            // Check session storage for existing authentication
+            const [authenticated, setAuthenticated] = useState(() => sessionStorage.getItem('agency_authenticated') === 'true');
             const [passInput, setPassInput] = useState("");
             const [passError, setPassError] = useState(false);
             const [user, setUser] = useState(null);
@@ -149,24 +152,27 @@
             const [customReason, setCustomReason] = useState("");
             const [customType, setCustomType] = useState(null);
 
-            // Handle Authentication
+            // Handle Authentication & Global Firebase Connect
             useEffect(() => {
                 try {
                     if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
-                    const auth = firebase.auth();
-                    const unsubscribe = auth.onAuthStateChanged((u) => {
-                        if (u) setUser(u);
-                        else auth.signInAnonymously().catch(e => {
-                            if (e.code === "auth/operation-not-allowed") {
-                                setError("Auth Error: Enable 'Anonymous' authentication in your Firebase Console.");
-                            } else {
-                                setError("Connection Denied: " + e.message);
-                            }
-                        });
+                    const authInstance = firebase.auth();
+                    const unsubscribe = authInstance.onAuthStateChanged((u) => {
+                        if (u) {
+                            setUser(u);
+                        } else {
+                            authInstance.signInAnonymously().catch(e => {
+                                if (e.code === "auth/operation-not-allowed") {
+                                    setError("AUTH ERROR: Anonymous login is not enabled in Firebase Console. (Authentication > Sign-in method > Anonymous)");
+                                } else {
+                                    setError("CONNECTION ERROR: " + e.message);
+                                }
+                            });
+                        }
                     });
                     return () => unsubscribe();
                 } catch (e) {
-                    setError("Initialization Failure: " + e.message);
+                    setError("CRITICAL INITIALIZATION FAILURE: " + e.message);
                 }
             }, []);
 
@@ -182,7 +188,10 @@
                         }
                         setEmployees(list);
                         setLoading(false);
-                    }, err => setError("Firestore Access Error: Check your Database Rules. " + err.message));
+                    }, err => {
+                        console.error("Firestore error:", err);
+                        setError("DATABASE ACCESS ERROR: Check your Firestore rules. " + err.message);
+                    });
 
                     const unsubLog = db.collection(LOGS_COLLECTION).orderBy('timestamp', 'desc').onSnapshot(snap => {
                         setLogs(snap.docs.map(d => ({ id: d.id, ...d.data() })));
@@ -190,7 +199,7 @@
 
                     return () => { unsubEmp(); unsubLog(); };
                 } catch (e) {
-                    setError("Database Sync Failed: " + e.message);
+                    setError("DATA SYNC FAILED: " + e.message);
                 }
             }, [user]);
 
@@ -208,6 +217,18 @@
                 });
             }, [logs, employees]);
 
+            const handleLogin = (e) => {
+                e.preventDefault();
+                if (passInput.trim() === AGENCY_PASSWORD) {
+                    setAuthenticated(true);
+                    sessionStorage.setItem('agency_authenticated', 'true');
+                    setPassError(false);
+                } else {
+                    setPassError(true);
+                    setPassInput("");
+                }
+            };
+
             const handleLogPoint = async () => {
                 if (!loggedBy.trim() || !customReason.trim()) return;
                 try {
@@ -222,7 +243,7 @@
                         note: logNote
                     });
                     setSelectedEmployee(null); setCustomType(null); setCustomReason(""); setLogNote(""); setLoggedBy("");
-                } catch(e) { setError("Save failed: " + e.message); }
+                } catch(e) { alert("Save failed: " + e.message); }
             };
 
             const handleReset = async (name, type) => {
@@ -236,7 +257,7 @@
                         if ((type === 'positive' && val > 0) || (type === 'negative' && val < 0)) batch.delete(doc.ref);
                     });
                     await batch.commit();
-                } catch(e) { setError("Reset failed: " + e.message); }
+                } catch(e) { alert("Reset failed: " + e.message); }
             };
 
             const handleAddEmployee = async () => {
@@ -245,7 +266,7 @@
                     const db = firebase.firestore();
                     await db.collection(ROSTER_COLLECTION).add({ name: newEmployeeName.trim() });
                     setNewEmployeeName(""); setShowAddModal(false);
-                } catch(e) { setError("Add failed: " + e.message); }
+                } catch(e) { alert("Add failed: " + e.message); }
             };
 
             if (error) return (
@@ -253,10 +274,10 @@
                     <div className="max-w-md bg-white p-10 rounded-3xl shadow-xl border border-red-200 animate-in">
                         <Icon name="AlertTriangle" className="text-red-500 mx-auto mb-4" size={48} />
                         <h2 className="text-xl font-black text-slate-900 mb-2 uppercase tracking-tighter">System Error</h2>
-                        <div className="text-sm text-slate-500 mb-6 bg-slate-50 p-4 rounded-xl text-left border font-medium overflow-auto max-h-40 custom-scrollbar">
+                        <div className="text-sm text-slate-500 mb-6 bg-slate-50 p-4 rounded-xl text-left border font-medium overflow-auto max-h-40 custom-scrollbar leading-relaxed">
                             {error}
                         </div>
-                        <button onClick={() => window.location.reload()} className="w-full bg-slate-900 text-white px-8 py-3 rounded-xl font-bold uppercase text-xs tracking-widest shadow-lg hover:bg-slate-800 transition-all">Retry Connection</button>
+                        <button onClick={() => { sessionStorage.clear(); window.location.reload(); }} className="w-full bg-slate-900 text-white px-8 py-3 rounded-xl font-bold uppercase text-xs tracking-widest shadow-lg hover:bg-slate-800 transition-all">Reset & Retry</button>
                     </div>
                 </div>
             );
@@ -266,10 +287,10 @@
                     <div className="max-w-sm w-full bg-white p-10 rounded-[2.5rem] shadow-2xl text-center animate-in">
                         <div className="inline-flex p-4 rounded-3xl bg-indigo-50 text-indigo-600 mb-6"><Icon name="Lock" size={32} /></div>
                         <h2 className="text-2xl font-black text-slate-900 uppercase tracking-tighter mb-2">Agency Access</h2>
-                        <p className="text-slate-400 text-sm mb-8">Enter the office access key.</p>
-                        <form onSubmit={(e) => { e.preventDefault(); if(passInput === AGENCY_PASSWORD) setAuthenticated(true); else setPassError(true); }} className="space-y-4">
+                        <p className="text-slate-400 text-sm mb-8">Enter the office access key to unlock.</p>
+                        <form onSubmit={handleLogin} className="space-y-4">
                             <input autoFocus type="password" placeholder="Access Key" className={`w-full p-4 rounded-2xl border bg-slate-50 text-center font-bold outline-none focus:ring-2 focus:ring-indigo-500 transition-all ${passError ? 'border-red-500 ring-red-100' : ''}`} value={passInput} onChange={e => setPassInput(e.target.value)} />
-                            {passError && <p className="text-red-500 text-[10px] font-bold uppercase">Invalid Password</p>}
+                            {passError && <p className="text-red-500 text-[10px] font-bold uppercase">Invalid Password Provided</p>}
                             <button type="submit" className="w-full bg-slate-900 text-white py-4 rounded-2xl font-black uppercase text-xs tracking-widest shadow-lg hover:bg-indigo-600 transition-all">Access Dashboard</button>
                         </form>
                     </div>
@@ -279,7 +300,7 @@
             if (loading) return (
                 <div className="h-screen flex flex-col items-center justify-center gap-4 bg-slate-50">
                     <div className="w-10 h-10 border-4 border-slate-900 border-t-transparent rounded-full animate-spin"></div>
-                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Synchronizing Data...</p>
+                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Syncing Cloud Database...</p>
                 </div>
             );
 
@@ -315,7 +336,7 @@
                                 </div>
                                 <div className="bg-white rounded-3xl border shadow-sm overflow-hidden overflow-x-auto">
                                     <table className="w-full text-left">
-                                        <thead><tr className="bg-slate-50 border-b text-[10px] font-black text-slate-400 uppercase tracking-widest"><th className="px-6 py-4">Name</th><th className="px-6 py-4">Status / Score</th><th className="px-6 py-4">Trend</th><th className="px-6 py-4">Alerts</th><th className="px-6 py-4"></th></tr></thead>
+                                        <thead><tr className="bg-slate-50 border-b text-[10px] font-black text-slate-400 uppercase tracking-widest"><th className="px-6 py-4">Name</th><th className="px-6 py-4">Status / Score</th><th className="px-6 py-4">Momentum</th><th className="px-6 py-4">Alerts</th><th className="px-6 py-4"></th></tr></thead>
                                         <tbody className="divide-y">
                                             {filtered.map(emp => (
                                                 <tr key={emp.id || emp.name} className="hover:bg-slate-50 group">
@@ -332,8 +353,8 @@
                             </div>
                         ) : (
                             <div className="max-w-4xl mx-auto space-y-6 animate-in">
-                                <div className="flex justify-between items-end mb-8"><h2 className="text-2xl font-black uppercase text-slate-800 tracking-tighter">Activity Ledger</h2><button onClick={async () => { if(confirm("Clear ledger?")) { const snap = await firebase.firestore().collection(LOGS_COLLECTION).get(); const b = firebase.firestore().batch(); snap.docs.forEach(d => b.delete(d.ref)); await b.commit(); }}} className="text-[10px] text-red-500 font-bold uppercase hover:underline tracking-widest">Wipe Data</button></div>
-                                {logs.map(log => (
+                                <div className="flex justify-between items-end mb-8"><h2 className="text-2xl font-black uppercase text-slate-800 tracking-tighter text-center sm:text-left">Activity Ledger</h2><button onClick={async () => { if(confirm("Clear ledger?")) { const db = firebase.firestore(); const snap = await db.collection(LOGS_COLLECTION).get(); const b = db.batch(); snap.docs.forEach(d => b.delete(d.ref)); await b.commit(); }}} className="text-[10px] text-red-500 font-bold uppercase hover:underline tracking-widest">Wipe Data</button></div>
+                                {logs.length === 0 ? <div className="text-center py-20 bg-white rounded-3xl border-2 border-dashed border-slate-200 text-slate-400 font-bold uppercase tracking-widest">No activity found</div> : logs.map(log => (
                                     <div key={log.id} className="bg-white p-5 rounded-2xl border shadow-sm flex flex-col gap-3 group transition-all hover:border-slate-300">
                                         <div className="flex justify-between items-start">
                                             <div className="flex gap-4 items-center"><div className={`p-2 rounded-lg ${log.value > 0 ? 'bg-emerald-50 text-emerald-600' : 'bg-red-50 text-red-600'}`}><Icon name={log.value > 0 ? "TrendingUp" : "TrendingDown"} size={20} /></div><div><p className="font-bold">{log.employeeName}</p><p className="text-[10px] text-slate-400 font-black uppercase tracking-widest">{log.label} • {log.date}</p></div></div>
@@ -384,12 +405,12 @@
                                     <div className="flex gap-3 text-slate-300 items-center">
                                         <button onClick={() => handleReset(viewingHistory, 'positive')} title="Reset Positive"><Icon name="Reset" size={18} className="hover:text-emerald-500 transition-colors" /></button>
                                         <button onClick={() => handleReset(viewingHistory, 'negative')} title="Reset Negative"><Icon name="Reset" size={18} className="hover:text-red-500 transition-colors" /></button>
-                                        <button onClick={async () => { if(confirm("Remove member?")) { const target = employees.find(e => e.name === viewingHistory); if(target) { await firebase.firestore().collection(ROSTER_COLLECTION).doc(target.id).delete(); setViewingHistory(null); } }}}><Icon name="Trash" size={18} className="hover:text-red-500 transition-colors" /></button>
+                                        <button onClick={async () => { if(confirm("Remove member?")) { const db = firebase.firestore(); const target = employees.find(e => e.name === viewingHistory); if(target) { await db.collection(ROSTER_COLLECTION).doc(target.id).delete(); setViewingHistory(null); } }}}><Icon name="Trash" size={18} className="hover:text-red-500 transition-colors" /></button>
                                         <button onClick={() => setViewingHistory(null)} className="ml-2"><Icon name="X" size={24} className="hover:text-slate-900 transition-colors" /></button>
                                     </div>
                                 </div>
                                 <div className="flex-1 overflow-y-auto p-8 custom-scrollbar space-y-8">
-                                    {logs.filter(l => l.employeeName === viewingHistory).length === 0 ? <p className="text-slate-300 italic text-center py-20">No history found.</p> : (
+                                    {logs.filter(l => l.employeeName === viewingHistory).length === 0 ? <p className="text-slate-300 italic text-center py-20 uppercase font-black tracking-widest text-xs">No records recorded</p> : (
                                         <div className="space-y-3">
                                             {logs.filter(l => l.employeeName === viewingHistory).map(l => (
                                                 <div key={l.id} className="p-4 border rounded-2xl flex justify-between items-center bg-white shadow-sm transition-all hover:border-indigo-100">
@@ -409,7 +430,7 @@
                         <div className="fixed inset-0 z-50 flex items-center justify-center p-6 bg-slate-900/40 backdrop-blur-sm">
                             <div className="bg-white p-10 rounded-[3rem] shadow-2xl w-full max-w-md animate-in">
                                 <h2 className="text-xl font-black uppercase mb-6 tracking-tighter text-center">Add Staff Member</h2>
-                                <input autoFocus type="text" className="w-full p-4 border rounded-2xl mb-8 font-bold outline-none focus:ring-2 focus:ring-slate-900 transition-all text-center uppercase" placeholder="Full Name" value={newEmployeeName} onChange={e => setNewEmployeeName(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleAddEmployee()} />
+                                <input autoFocus type="text" className="w-full p-4 border rounded-2xl mb-8 font-bold outline-none focus:ring-2 focus:ring-indigo-500 transition-all text-center uppercase" placeholder="Full Name" value={newEmployeeName} onChange={e => setNewEmployeeName(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleAddEmployee()} />
                                 <div className="flex gap-3"><button onClick={() => setShowAddModal(false)} className="flex-1 p-4 rounded-2xl border font-bold text-xs uppercase tracking-widest hover:bg-slate-50 transition-all">Cancel</button><button onClick={handleAddEmployee} className="flex-1 bg-slate-900 text-white py-4 rounded-2xl font-black text-xs uppercase shadow-lg transition-all hover:bg-indigo-600">Confirm</button></div>
                             </div>
                         </div>
@@ -417,23 +438,6 @@
                 </div>
             );
         }
-
-        // Global Error Tracker to replace "Blank Screen" with helpful info
-        window.addEventListener('error', function(event) {
-            const root = document.getElementById('root');
-            if (root) {
-                root.innerHTML = \`
-                    <div style="height: 100vh; display: flex; align-items: center; justify-content: center; padding: 20px; background: #fff1f2; color: #9f1239; font-family: sans-serif;">
-                        <div style="max-width: 500px; text-align: left;">
-                            <h2 style="font-weight: 900; font-size: 1.5rem; margin-bottom: 10px;">SCRIPT ERROR DETECTED</h2>
-                            <p style="margin-bottom: 20px;">The application crashed during startup. This is usually due to a missing script or syntax error in index.html.</p>
-                            <pre style="background: #ffffff; padding: 15px; border-radius: 10px; font-size: 12px; overflow: auto; border: 1px solid #fecdd3;">\${event.message}\\nLine: \${event.lineno}</pre>
-                            <button onclick="window.location.reload()" style="margin-top: 20px; background: #9f1239; color: white; padding: 10px 20px; border: none; border-radius: 5px; font-weight: bold; cursor: pointer;">Retry App</button>
-                        </div>
-                    </div>
-                \`;
-            }
-        });
 
         const root = ReactDOM.createRoot(document.getElementById('root'));
         root.render(<App />);
