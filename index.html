@@ -9,7 +9,7 @@
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Firebase v8 Compat (The most stable way for single-file apps) -->
+    <!-- Firebase SDKs (v8 Compat for maximum stability in single HTML files) -->
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
@@ -25,11 +25,11 @@
 </head>
 <body>
     <div id="root">
-        <!-- Static fallback in case JS fails -->
+        <!-- Static fallback shown if React fails to mount -->
         <div style="height: 100vh; display: flex; align-items: center; justify-content: center; text-align: center; color: #64748b;">
             <div>
                 <p style="font-weight: 900; letter-spacing: -0.025em; font-size: 1.5rem; color: #0f172a;">INITIALIZING SYSTEM</p>
-                <p style="font-size: 0.875rem; margin-top: 0.5rem;">If this screen stays for more than 5 seconds, check your browser console.</p>
+                <p style="font-size: 0.875rem; margin-top: 0.5rem;">If this screen stays for more than 5 seconds, check your connection.</p>
             </div>
         </div>
     </div>
@@ -38,7 +38,7 @@
         const { useState, useMemo, useEffect, Fragment } = React;
 
         // --- 1. CONFIGURATION ---
-        // These are your specific keys for the 'points-dashboard-78c0b' project.
+        // Your specific keys for 'points-dashboard-78c0b'
         const firebaseConfig = {
             apiKey: "AIzaSyAAvxcoVE8ZpvG4OC5VKuNnfzuLxidL83U",
             authDomain: "points-dashboard-78c0b.firebaseapp.com",
@@ -55,14 +55,17 @@
         // --- 2. FIREBASE INIT ---
         let db = null;
         let auth = null;
+        let isFirebaseReady = false;
+
         try {
             if (!firebase.apps.length) {
                 firebase.initializeApp(firebaseConfig);
             }
             db = firebase.firestore();
             auth = firebase.auth();
+            isFirebaseReady = true;
         } catch (e) {
-            console.error("Firebase Setup Failed:", e);
+            console.error("Firebase Initialization Error:", e);
         }
 
         const INITIAL_ROSTER = [
@@ -87,7 +90,10 @@
                 Reset: <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8M3 3v5h5" />,
                 History: <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8M3 3v5h5" />,
                 Plus: <path d="M12 5v14M5 12h14" />,
-                Alert: <circle cx="12" cy="12" r="10" /><line x1="12" x2="12" y1="8" y2="12" /><line x1="12" x2="12.01" y1="16" y2="16" />
+                Alert: <Fragment><circle cx="12" cy="12" r="10" /><line x1="12" x2="12" y1="8" y2="12" /><line x1="12" x2="12.01" y1="16" y2="16" /></Fragment>,
+                User: <Fragment><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2" /><circle cx="12" cy="7" r="4" /></Fragment>,
+                Sticky: <path d="M12 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7M14 3l7 7M14 3v7h7" />,
+                AlertTriangle: <Fragment><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z" /><line x1="12" x2="12" y1="9" y2="13" /><line x1="12" x2="12.01" y1="17" y2="17" /></Fragment>
             };
             return (
                 <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
@@ -140,7 +146,7 @@
             // Handle Authentication
             useEffect(() => {
                 if (!auth) {
-                    setError("Firebase Authentication is not available.");
+                    setError("Firebase Authentication initialization failed.");
                     return;
                 }
                 const unsubscribe = auth.onAuthStateChanged((u) => {
@@ -161,11 +167,14 @@
                     }
                     setEmployees(list);
                     setLoading(false);
-                }, err => setError("Database Access Error (Firestore Rules?): " + err.message));
+                }, err => {
+                    console.error("Firestore Error:", err);
+                    setError("Database Access Error: Ensure Firestore rules allow read/write in Test Mode.");
+                });
 
                 const unsubLog = db.collection(LOGS_COLLECTION).orderBy('timestamp', 'desc').onSnapshot(snap => {
                     setLogs(snap.docs.map(d => ({ id: d.id, ...d.data() })));
-                });
+                }, err => console.error("Log subscription error:", err));
 
                 return () => { unsubEmp(); unsubLog(); };
             }, [user]);
@@ -186,16 +195,18 @@
 
             const handleLogPoint = async () => {
                 if (!loggedBy.trim() || !customReason.trim() || !db) return;
-                await db.collection(LOGS_COLLECTION).add({
-                    timestamp: Date.now(),
-                    date: new Date().toLocaleDateString(),
-                    employeeName: selectedEmployee,
-                    label: customReason,
-                    value: customType === 'positive' ? 1 : -1,
-                    loggedBy,
-                    note: logNote
-                });
-                setSelectedEmployee(null); setCustomType(null); setCustomReason(""); setLogNote(""); setLoggedBy("");
+                try {
+                    await db.collection(LOGS_COLLECTION).add({
+                        timestamp: Date.now(),
+                        date: new Date().toLocaleDateString(),
+                        employeeName: selectedEmployee,
+                        label: customReason,
+                        value: customType === 'positive' ? 1 : -1,
+                        loggedBy,
+                        note: logNote
+                    });
+                    setSelectedEmployee(null); setCustomType(null); setCustomReason(""); setLogNote(""); setLoggedBy("");
+                } catch(e) { alert("Save failed: " + e.message); }
             };
 
             const handleReset = async (name, type) => {
@@ -209,10 +220,16 @@
                 await batch.commit();
             };
 
+            const handleAddEmployee = async () => {
+                if (!newEmployeeName.trim() || !db) return;
+                await db.collection(ROSTER_COLLECTION).add({ name: newEmployeeName.trim() });
+                setNewEmployeeName(""); setShowAddModal(false);
+            };
+
             if (error) return (
                 <div className="h-screen flex items-center justify-center p-6 bg-red-50 text-center">
-                    <div className="max-w-md bg-white p-10 rounded-3xl shadow-xl border border-red-200">
-                        <Icon name="Alert" className="text-red-500 mx-auto mb-4" size={48} />
+                    <div className="max-w-md bg-white p-10 rounded-3xl shadow-xl border border-red-200 animate-in">
+                        <Icon name="AlertTriangle" className="text-red-500 mx-auto mb-4" size={48} />
                         <h2 className="text-xl font-black text-slate-900 mb-2 uppercase">System Error</h2>
                         <p className="text-sm text-slate-500 mb-6">{error}</p>
                         <button onClick={() => window.location.reload()} className="bg-slate-900 text-white px-8 py-3 rounded-xl font-bold uppercase text-xs">Retry Connection</button>
@@ -227,17 +244,17 @@
                         <h2 className="text-2xl font-black text-slate-900 uppercase tracking-tighter mb-2">Agency Access</h2>
                         <p className="text-slate-400 text-sm mb-8">Enter the office access key.</p>
                         <form onSubmit={(e) => { e.preventDefault(); if(passInput === AGENCY_PASSWORD) setAuthenticated(true); else alert("Invalid Key"); }} className="space-y-4">
-                            <input autoFocus type="password" placeholder="Access Key" className="w-full p-4 rounded-2xl border bg-slate-50 text-center font-bold outline-none" value={passInput} onChange={e => setPassInput(e.target.value)} />
-                            <button type="submit" className="w-full bg-slate-900 text-white py-4 rounded-2xl font-black uppercase text-xs tracking-widest shadow-lg">Access Dashboard</button>
+                            <input autoFocus type="password" placeholder="Access Key" className="w-full p-4 rounded-2xl border bg-slate-50 text-center font-bold outline-none focus:ring-2 focus:ring-indigo-500 transition-all" value={passInput} onChange={e => setPassInput(e.target.value)} />
+                            <button type="submit" className="w-full bg-slate-900 text-white py-4 rounded-2xl font-black uppercase text-xs tracking-widest shadow-lg hover:bg-indigo-600 transition-all">Access Dashboard</button>
                         </form>
                     </div>
                 </div>
             );
 
             if (loading) return (
-                <div className="h-screen flex flex-col items-center justify-center gap-4">
+                <div className="h-screen flex flex-col items-center justify-center gap-4 bg-slate-50">
                     <div className="w-10 h-10 border-4 border-slate-900 border-t-transparent rounded-full animate-spin"></div>
-                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Syncing Cloud...</p>
+                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Synchronizing Cloud Data...</p>
                 </div>
             );
 
@@ -250,7 +267,7 @@
                             <div className="bg-slate-900 p-2 rounded-lg text-white"><Icon name="Dashboard" /></div>
                             <div>
                                 <h1 className="text-lg font-black uppercase tracking-tighter leading-none">Office Console</h1>
-                                <p className="text-[10px] font-bold uppercase text-slate-400 mt-1 flex items-center gap-1"><Icon name="Cloud" size={10} className="text-indigo-500" /> Cloud Backup Active</p>
+                                <p className="text-[10px] font-bold uppercase text-slate-400 mt-1 flex items-center gap-1"><Icon name="Cloud" size={10} className="text-indigo-500" /> Cloud Sync Active</p>
                             </div>
                         </div>
                         <nav className="flex bg-slate-100 p-1 rounded-xl">
@@ -263,24 +280,24 @@
                         {activeTab === 'dashboard' ? (
                             <div className="max-w-6xl mx-auto space-y-8 animate-in">
                                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                                    <div className="bg-white p-6 rounded-2xl border shadow-sm"><p className="text-[9px] font-black uppercase text-slate-400 mb-2">Total Positives</p><div className="text-3xl font-black text-emerald-600">{logs.filter(l => l.value > 0).length}</div></div>
-                                    <div className="bg-white p-6 rounded-2xl border shadow-sm"><p className="text-[9px] font-black uppercase text-slate-400 mb-2">Total Negatives</p><div className="text-3xl font-black text-red-500">{logs.filter(l => l.value < 0).length}</div></div>
+                                    <div className="bg-white p-6 rounded-2xl border shadow-sm"><p className="text-[9px] font-black uppercase text-slate-400 mb-2">Global Positives</p><div className="text-3xl font-black text-emerald-600">{logs.filter(l => l.value > 0).length}</div></div>
+                                    <div className="bg-white p-6 rounded-2xl border shadow-sm"><p className="text-[9px] font-black uppercase text-slate-400 mb-2">Global Negatives</p><div className="text-3xl font-black text-red-500">{logs.filter(l => l.value < 0).length}</div></div>
                                     <div className="bg-white p-6 rounded-2xl border shadow-sm"><p className="text-[9px] font-black uppercase text-red-500 mb-2">At-Risk Staff</p><div className="text-3xl font-black text-red-500">{employeeStats.filter(e => e.neg >= 3).length}</div></div>
                                 </div>
                                 <div className="flex gap-4">
-                                    <div className="flex-1 flex items-center bg-white px-4 rounded-xl border shadow-sm"><Icon name="Search" className="text-slate-400 mr-2"/><input type="text" placeholder="Filter team..." className="w-full bg-transparent border-none py-4 text-sm focus:ring-0" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} /></div>
+                                    <div className="flex-1 flex items-center bg-white px-4 rounded-xl border shadow-sm"><Icon name="Search" className="text-slate-400 mr-2"/><input type="text" placeholder="Search team member..." className="w-full bg-transparent border-none py-4 text-sm focus:ring-0" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} /></div>
                                     <button onClick={() => setShowAddModal(true)} className="bg-slate-900 text-white px-8 rounded-xl font-black uppercase text-xs hover:bg-indigo-600 transition-all flex items-center gap-2 shadow-lg shadow-slate-200"><Icon name="UserPlus" size={16}/> Manage Team</button>
                                 </div>
                                 <div className="bg-white rounded-3xl border shadow-sm overflow-hidden overflow-x-auto">
                                     <table className="w-full text-left">
-                                        <thead><tr className="bg-slate-50 border-b text-[10px] font-black text-slate-400 uppercase tracking-widest"><th className="px-6 py-4">Name</th><th className="px-6 py-4">Status / Score</th><th className="px-6 py-4">Trend</th><th className="px-6 py-4">Next Action</th><th className="px-6 py-4"></th></tr></thead>
+                                        <thead><tr className="bg-slate-50 border-b text-[10px] font-black text-slate-400 uppercase tracking-widest"><th className="px-6 py-4">Name</th><th className="px-6 py-4">Score (P/N)</th><th className="px-6 py-4">Momentum</th><th className="px-6 py-4">Alerts</th><th className="px-6 py-4"></th></tr></thead>
                                         <tbody className="divide-y">
                                             {filtered.map(emp => (
                                                 <tr key={emp.name} className="hover:bg-slate-50 group">
                                                     <td className="px-6 py-5 font-bold text-slate-700 underline cursor-pointer hover:text-indigo-600" onClick={() => setViewingHistory(emp.name)}>{emp.name}</td>
                                                     <td className="px-6 py-5 flex gap-2"><span className="px-2 py-1 rounded bg-emerald-50 text-emerald-600 font-black text-[10px]">{emp.pos}P</span><span className={`px-2 py-1 rounded font-black text-[10px] ${emp.neg >= 3 ? 'bg-red-500 text-white' : 'bg-red-50 text-red-500'}`}>{emp.neg}N</span></td>
                                                     <td className="px-6 py-5"><Sparkline data={emp.journey} /></td>
-                                                    <td className="px-6 py-5 text-[10px] font-bold text-slate-400 uppercase tracking-tight">{emp.neg >= 3 ? 'WARNING REQUIRED' : 'KEEP MONITORING'}</td>
+                                                    <td className="px-6 py-5 text-[10px] font-bold text-slate-400 uppercase tracking-tight">{emp.neg >= 3 ? <span className="text-red-600">WARNING REQUIRED</span> : 'STABLE'}</td>
                                                     <td className="px-6 py-5 text-right"><button onClick={() => setSelectedEmployee(emp.name)} className="bg-slate-900 text-white text-[9px] font-bold px-4 py-2 rounded-lg opacity-0 group-hover:opacity-100 transition-all uppercase tracking-widest">Log Point</button></td>
                                                 </tr>
                                             ))}
@@ -320,10 +337,10 @@
                                     </div></div>
                                 </div>
                                 {customType && (
-                                    <div className="px-8 pb-8 space-y-4"><div className="p-8 bg-slate-50 rounded-[2rem] border grid grid-cols-1 md:grid-cols-2 gap-6">
-                                        <div><label className="text-[10px] font-black uppercase text-slate-400 mb-2 block tracking-widest">Authorized By</label><input type="text" className="w-full p-3 rounded-xl border focus:ring-1 focus:ring-slate-900 outline-none font-bold" value={loggedBy} onChange={e => setLoggedBy(e.target.value)} /></div>
-                                        <div><label className="text-[10px] font-black uppercase text-slate-400 mb-2 block tracking-widest">Reason Label</label><input type="text" className="w-full p-3 rounded-xl border focus:ring-1 focus:ring-slate-900 outline-none font-bold" value={customReason} onChange={e => setCustomReason(e.target.value)} /></div>
-                                        <div className="col-span-2"><label className="text-[10px] font-black uppercase text-slate-400 mb-2 block tracking-widest">Notes / Context</label><textarea className="w-full p-3 rounded-xl border min-h-[80px] focus:ring-1 focus:ring-slate-900 outline-none font-medium" value={logNote} onChange={e => setLogNote(e.target.value)} /></div>
+                                    <div className="px-8 pb-8 space-y-4 animate-in"><div className="p-8 bg-slate-50 rounded-[2rem] border grid grid-cols-1 md:grid-cols-2 gap-6">
+                                        <div><label className="text-[10px] font-black uppercase text-slate-400 mb-2 block tracking-widest">Authorized By</label><input type="text" className="w-full p-3 rounded-xl border focus:ring-2 focus:ring-slate-900 outline-none font-bold" value={loggedBy} onChange={e => setLoggedBy(e.target.value)} /></div>
+                                        <div><label className="text-[10px] font-black uppercase text-slate-400 mb-2 block tracking-widest">Reason Label</label><input type="text" className="w-full p-3 rounded-xl border focus:ring-2 focus:ring-slate-900 outline-none font-bold" value={customReason} onChange={e => setCustomReason(e.target.value)} /></div>
+                                        <div className="col-span-2"><label className="text-[10px] font-black uppercase text-slate-400 mb-2 block tracking-widest">Notes / Context</label><textarea className="w-full p-3 rounded-xl border min-h-[80px] focus:ring-2 focus:ring-slate-900 outline-none font-medium" value={logNote} onChange={e => setLogNote(e.target.value)} /></div>
                                         <button disabled={!loggedBy.trim() || !customReason.trim()} onClick={handleLogPoint} className="col-span-2 bg-slate-900 text-white py-4 rounded-2xl font-black text-xs uppercase tracking-widest disabled:opacity-30 shadow-xl transition-all hover:bg-indigo-600">Commit Record</button>
                                     </div></div>
                                 )}
@@ -370,7 +387,7 @@
                             <div className="bg-white p-10 rounded-[3rem] shadow-2xl w-full max-w-md animate-in">
                                 <h2 className="text-xl font-black uppercase mb-6 tracking-tighter text-center">Add Staff Member</h2>
                                 <input autoFocus type="text" className="w-full p-4 border rounded-2xl mb-8 font-bold outline-none focus:ring-2 focus:ring-slate-900 transition-all text-center uppercase" placeholder="Full Name" value={newEmployeeName} onChange={e => setNewEmployeeName(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleAddEmployee()} />
-                                <div className="flex gap-3"><button onClick={() => setShowAddModal(false)} className="flex-1 p-4 rounded-2xl border font-bold text-xs uppercase tracking-widest hover:bg-slate-50">Cancel</button><button onClick={handleAddEmployee} className="flex-1 bg-slate-900 text-white py-4 rounded-2xl font-black text-xs uppercase shadow-lg transition-all hover:bg-indigo-600">Confirm</button></div>
+                                <div className="flex gap-3"><button onClick={() => setShowAddModal(false)} className="flex-1 p-4 rounded-2xl border font-bold text-xs uppercase tracking-widest hover:bg-slate-50 transition-all">Cancel</button><button onClick={handleAddEmployee} className="flex-1 bg-slate-900 text-white py-4 rounded-2xl font-black text-xs uppercase shadow-lg transition-all hover:bg-indigo-600">Confirm</button></div>
                             </div>
                         </div>
                     )}
