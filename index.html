@@ -9,7 +9,7 @@
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Firebase SDKs (v8 Compat for maximum stability in single HTML files) -->
+    <!-- Firebase SDKs (v8 Compat for maximum stability in standalone files) -->
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-auth.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-firestore.js"></script>
@@ -31,33 +31,32 @@
 
         /**
          * --- CONFIGURATION AREA ---
-         * When deploying to GitHub, you need to provide your own Firebase keys.
-         * 1. Create a free project at console.firebase.google.com
-         * 2. Enable 'Firestore' and 'Anonymous Auth'
-         * 3. Copy your Web App Config here.
+         * Your Firebase keys have been added here to enable cloud sync on GitHub.
          */
         const MANUAL_CONFIG = {
-            apiKey: "",
-            authDomain: "",
-            projectId: "",
-            storageBucket: "",
-            messagingSenderId: "",
-            appId: ""
+            apiKey: "AIzaSyAAvxcoVE8ZpvG4OC5VKuNnfzuLxidL83U",
+            authDomain: "points-dashboard-78c0b.firebaseapp.com",
+            projectId: "points-dashboard-78c0b",
+            storageBucket: "points-dashboard-78c0b.firebasestorage.app",
+            messagingSenderId: "456742475224",
+            appId: "1:456742475224:web:7b73cf082db54daa488ead"
         };
 
         const AGENCY_PASSWORD = "AgencyAccess2026";
         
-        // Environment Handling - Uses Gemini keys if available, otherwise uses MANUAL_CONFIG
-        let firebaseConfig = MANUAL_CONFIG;
+        // Environment Handling: Priority 1: Gemini Environment | Priority 2: Your Manual Config
+        let firebaseConfig = null;
         try {
             if (typeof __firebase_config !== 'undefined' && __firebase_config) {
                 firebaseConfig = JSON.parse(__firebase_config);
+            } else if (MANUAL_CONFIG.apiKey) {
+                firebaseConfig = MANUAL_CONFIG;
             }
         } catch (e) { console.error("Config parse error", e); }
         
-        const currentAppId = typeof __app_id !== 'undefined' ? __app_id : 'agency-performance-v2';
+        const currentAppId = typeof __app_id !== 'undefined' ? __app_id : 'agency-performance-live';
 
-        // Initialize Firebase safely
+        // Initialize Firebase
         let isFirebaseReady = false;
         if (firebaseConfig && firebaseConfig.apiKey) {
             if (!firebase.apps.length) {
@@ -65,9 +64,6 @@
             }
             isFirebaseReady = true;
         }
-
-        const getAuth = () => isFirebaseReady ? firebase.auth() : null;
-        const getDb = () => isFirebaseReady ? firebase.firestore() : null;
 
         const INITIAL_ROSTER = [
             "Aaron Teng", "Anna Larmuth", "Conner Foxcroft",
@@ -120,7 +116,7 @@
                 Cloud: <path d="M17.5 19c2.5 0 4.5-2 4.5-4.5 0-2.3-1.8-4.3-4-4.5a7 7 0 1 0-13.5 1.5c-2.2.2-4 2.2-4 4.5C.5 17 2.5 19 5 19h12.5z" />,
                 Reset: <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8M3 3v5h5" />,
                 Sticky: <path d="M12 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7M14 3l7 7M14 3v7h7" />,
-                Settings: <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z" /><circle cx="12" cy="12" r="3" />
+                AlertTriangle: <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z" /><line x1="12" x2="12" y1="9" y2="13" /><line x1="12" x2="12.01" y1="17" y2="17" />
             };
 
             return (
@@ -169,31 +165,13 @@
             const [customReason, setCustomReason] = useState("");
             const [customType, setCustomType] = useState(null);
 
-            const auth = getAuth();
-            const db = getDb();
-
-            // If Firebase config is missing and we aren't in Gemini, show setup screen
-            if (!isFirebaseReady) {
-                return (
-                    <div className="h-screen flex items-center justify-center bg-slate-900 p-6 text-center">
-                        <div className="max-w-md bg-white rounded-3xl p-10 shadow-2xl">
-                            <Icon name="Settings" size={48} className="mx-auto text-indigo-600 mb-6 animate-spin-slow" />
-                            <h2 className="text-2xl font-black uppercase text-slate-900 mb-4">Setup Required</h2>
-                            <p className="text-slate-500 mb-6">To use this dashboard on GitHub, you must paste your <b>Firebase Config</b> into the code.</p>
-                            <div className="bg-slate-50 p-4 rounded-xl text-left text-xs font-mono text-slate-600 mb-6 overflow-hidden">
-                                1. Open this file in a text editor.<br/>
-                                2. Find the <b>MANUAL_CONFIG</b> block.<br/>
-                                3. Paste your keys from the Firebase Console.
-                            </div>
-                            <button onClick={() => window.location.reload()} className="w-full bg-slate-900 text-white py-4 rounded-xl font-black text-xs uppercase tracking-widest">I've Added My Keys</button>
-                        </div>
-                    </div>
-                );
-            }
-
             // Auth Loop
             useEffect(() => {
-                if (!auth) return;
+                if (!isFirebaseReady) {
+                    setLoading(false);
+                    return;
+                }
+                const auth = firebase.auth();
                 const init = async () => {
                     try {
                         if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
@@ -201,7 +179,7 @@
                         } else {
                             await auth.signInAnonymously();
                         }
-                    } catch (e) { console.error("Firebase auth error:", e); }
+                    } catch (e) { console.error("Auth error:", e); }
                 };
                 init();
                 return auth.onAuthStateChanged(setUser);
@@ -209,7 +187,8 @@
 
             // Data Sync
             useEffect(() => {
-                if (!user || !db) return;
+                if (!user || !isFirebaseReady) return;
+                const db = firebase.firestore();
                 const baseRef = db.collection('artifacts').doc(currentAppId).collection('public').doc('data');
                 
                 const unsubEmp = baseRef.collection('employees').onSnapshot(snap => {
@@ -224,6 +203,9 @@
                     }
                     setEmployees(list);
                     setLoading(false);
+                }, err => {
+                    console.error("Firestore Permission Error.", err);
+                    setLoading(false);
                 });
 
                 const unsubLog = baseRef.collection('logs').orderBy('timestamp', 'desc').onSnapshot(snap => {
@@ -237,25 +219,25 @@
                 return employees.map(emp => {
                     const empLogs = logs.filter(l => l.employeeName === emp.name).sort((a, b) => a.timestamp - b.timestamp);
                     const journey = [0];
-                    let posCount = 0, negCount = 0, total = 0;
+                    let pos = 0, neg = 0, total = 0;
                     empLogs.forEach(l => {
                         total += l.value;
                         journey.push(total);
-                        if (l.value > 0) posCount++; else negCount++;
+                        if (l.value > 0) pos++; else neg++;
                     });
                     
                     let status = "Stable", action = "Keep Monitoring", color = "text-slate-500", bg = "bg-slate-100";
-                    if (posCount >= 10) { status = "Elite", action = "REWARD ELIGIBLE", color = "text-emerald-600 font-bold", bg = "bg-emerald-50"; }
-                    else if (negCount >= 3) { status = "At Risk", action = "WARNING REQUIRED", color = "text-red-700 font-bold", bg = "bg-red-50"; }
-                    else if (posCount >= 5) { status = "Rising", action = "Success Streak", color = "text-teal-600", bg = "bg-teal-50"; }
+                    if (pos >= 10) { status = "Elite", action = "REWARD ELIGIBLE", color = "text-emerald-600 font-bold", bg = "bg-emerald-50"; }
+                    else if (neg >= 3) { status = "At Risk", action = "WARNING REQUIRED", color = "text-red-700 font-bold", bg = "bg-red-50"; }
+                    else if (pos >= 5) { status = "Rising", action = "Success Streak", color = "text-teal-600", bg = "bg-teal-50"; }
                     
-                    return { ...emp, posCount, negCount, journey, status, action, color, bg };
+                    return { ...emp, pos, neg, journey, status, action, color, bg };
                 });
             }, [logs, employees]);
 
             const handleLogPoint = async () => {
-                if (!loggedBy.trim() || !customReason.trim() || !db) return;
-                await db.collection('artifacts').doc(currentAppId).collection('public').doc('data').collection('logs').add({
+                if (!loggedBy.trim() || !customReason.trim() || !isFirebaseReady) return;
+                await firebase.firestore().collection('artifacts').doc(currentAppId).collection('public').doc('data').collection('logs').add({
                     timestamp: Date.now(),
                     date: new Date().toLocaleDateString(),
                     employeeName: selectedEmployee,
@@ -268,7 +250,8 @@
             };
 
             const handleReset = async (name, type) => {
-                if (!db || !confirm(`Reset all ${type} points for ${name}?`)) return;
+                if (!isFirebaseReady || !confirm(`Reset all ${type} points for ${name}?`)) return;
+                const db = firebase.firestore();
                 const snap = await db.collection('artifacts').doc(currentAppId).collection('public').doc('data').collection('logs').where('employeeName', '==', name).get();
                 const batch = db.batch();
                 snap.docs.forEach(doc => {
@@ -279,10 +262,32 @@
             };
 
             const handleAddEmployee = async () => {
-                if (!newEmployeeName.trim() || !db) return;
-                await db.collection('artifacts').doc(currentAppId).collection('public').doc('data').collection('employees').add({ name: newEmployeeName.trim() });
+                if (!newEmployeeName.trim() || !isFirebaseReady) return;
+                await firebase.firestore().collection('artifacts').doc(currentAppId).collection('public').doc('data').collection('employees').add({ name: newEmployeeName.trim() });
                 setNewEmployeeName(""); setShowAddModal(false);
             };
+
+            // Setup Required Screen (Only on GitHub if MANUAL_CONFIG is empty)
+            if (!isFirebaseReady && typeof __firebase_config === 'undefined') {
+                return (
+                    <div className="h-screen flex items-center justify-center bg-slate-900 p-6 text-center">
+                        <div className="max-w-md bg-white rounded-3xl p-10 shadow-2xl animate-in">
+                            <div className="bg-red-50 text-red-500 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-6">
+                                <Icon name="AlertTriangle" size={32} />
+                            </div>
+                            <h2 className="text-2xl font-black uppercase text-slate-900 mb-4">Connection Required</h2>
+                            <p className="text-slate-500 mb-6 text-sm">To use this dashboard on GitHub, you must connect it to your Firebase project.</p>
+                            <div className="bg-slate-50 p-4 rounded-xl text-left text-[11px] font-mono text-slate-600 mb-6 leading-relaxed">
+                                1. Open this file in a text editor.<br/>
+                                2. Find the <b className="text-indigo-600">MANUAL_CONFIG</b> block.<br/>
+                                3. Paste the keys you received from the console.<br/>
+                                4. Save and commit back to GitHub.
+                            </div>
+                            <button onClick={() => window.location.reload()} className="w-full bg-slate-900 text-white py-4 rounded-xl font-black text-xs uppercase tracking-widest shadow-lg">Refresh After Setup</button>
+                        </div>
+                    </div>
+                );
+            }
 
             if (!isAuthenticated) {
                 return (
@@ -316,7 +321,7 @@
                             <div className="bg-slate-900 p-2 rounded-lg text-white"><Icon name="Dashboard" size={24} /></div>
                             <div>
                                 <h1 className="text-lg font-bold uppercase tracking-tighter leading-none">Office Console</h1>
-                                <p className="text-[10px] text-slate-400 font-black mt-1 uppercase tracking-widest flex items-center gap-1"><Icon name="Cloud" size={10} className="text-indigo-500" /> Cloud Storage Active</p>
+                                <p className="text-[10px] text-slate-400 font-black mt-1 uppercase tracking-widest flex items-center gap-1"><Icon name="Cloud" size={10} className="text-indigo-500" /> Cloud Sync Active</p>
                             </div>
                         </div>
                         <nav className="flex bg-slate-100 p-1 rounded-lg border">
@@ -339,12 +344,12 @@
                                 </div>
                                 <div className="bg-white rounded-2xl border shadow-sm overflow-hidden overflow-x-auto">
                                     <table className="w-full text-left border-collapse min-w-[700px]">
-                                        <thead><tr className="bg-slate-50 border-b text-[10px] font-black text-slate-400 uppercase tracking-widest"><th className="px-6 py-4">Employee</th><th className="px-6 py-4">Status / Score</th><th className="px-6 py-4">Trend</th><th className="px-6 py-4">Status</th><th className="px-6 py-4">Required Action</th><th className="px-6 py-4"></th></tr></thead>
+                                        <thead><tr className="bg-slate-50 border-b text-[10px] font-black text-slate-400 uppercase tracking-widest"><th className="px-6 py-4">Employee</th><th className="px-6 py-4">P / N</th><th className="px-6 py-4">Trend</th><th className="px-6 py-4">Status</th><th className="px-6 py-4">Action</th><th className="px-6 py-4"></th></tr></thead>
                                         <tbody className="divide-y">
-                                            {filtered.length === 0 ? <tr><td colSpan="6" className="p-10 text-center text-slate-400 italic">No records found.</td></tr> : filtered.map(emp => (
+                                            {filtered.map(emp => (
                                                 <tr key={emp.name} className="hover:bg-slate-50 group">
                                                     <td className="px-6 py-4 font-bold text-slate-700 underline cursor-pointer hover:text-indigo-600" onClick={() => setViewingHistory(emp.name)}>{emp.name}</td>
-                                                    <td className="px-6 py-4 flex gap-2"><span className="px-2 py-1 rounded bg-emerald-50 text-emerald-600 font-black text-[10px]">{emp.posCount}P</span><span className={`px-2 py-1 rounded font-black text-[10px] ${emp.neg >= 3 ? 'bg-red-500 text-white shadow-sm' : 'bg-red-50 text-red-500'}`}>{emp.negCount}N</span></td>
+                                                    <td className="px-6 py-4 flex gap-2"><span className="px-2 py-1 rounded bg-emerald-50 text-emerald-600 font-black text-[10px]">{emp.pos}P</span><span className={`px-2 py-1 rounded font-black text-[10px] ${emp.neg >= 3 ? 'bg-red-500 text-white shadow-sm' : 'bg-red-50 text-red-500'}`}>{emp.neg}N</span></td>
                                                     <td className="px-6 py-4"><Sparkline data={emp.journey} /></td>
                                                     <td className="px-6 py-4 text-[10px] font-black uppercase"><span className={`${emp.bg} ${emp.color} px-2 py-1 rounded`}>{emp.status}</span></td>
                                                     <td className="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-tight">{emp.action}</td>
@@ -356,9 +361,9 @@
                                 </div>
                             </div>
                         ) : (
-                            <div className="max-w-4xl mx-auto space-y-6">
-                                <div className="flex justify-between items-end mb-8"><h2 className="text-2xl font-black text-slate-800 uppercase tracking-tighter">Activity Ledger</h2><button onClick={async () => { if(confirm("Clear ALL logs?")) { const snap = await db.collection('artifacts').doc(currentAppId).collection('public').doc('data').collection('logs').get(); const b = db.batch(); snap.docs.forEach(d => b.delete(d.ref)); await b.commit(); }}} className="text-[10px] text-red-500 font-bold uppercase hover:underline">Erase Ledger</button></div>
-                                {logs.length === 0 ? <p className="p-10 text-center text-slate-400 italic bg-white rounded-xl border border-dashed">No log entries found.</p> : logs.map(log => (
+                            <div className="max-w-4xl mx-auto space-y-6 animate-in">
+                                <div className="flex justify-between items-end mb-8"><h2 className="text-2xl font-black text-slate-800 uppercase tracking-tighter">Verified Activity Ledger</h2><button onClick={async () => { if(confirm("Clear ALL logs?")) { const snap = await firebase.firestore().collection('artifacts').doc(currentAppId).collection('public').doc('data').collection('logs').get(); const b = firebase.firestore().batch(); snap.docs.forEach(d => b.delete(d.ref)); await b.commit(); }}} className="text-[10px] text-red-500 font-bold uppercase hover:underline">Erase Ledger</button></div>
+                                {logs.map(log => (
                                     <div key={log.id} className="bg-white p-5 rounded-2xl border shadow-sm flex flex-col gap-3 group transition-all hover:border-slate-300">
                                         <div className="flex justify-between items-start">
                                             <div className="flex gap-4 items-center">
@@ -367,7 +372,7 @@
                                             </div>
                                             <div className="flex items-center gap-4">
                                                 <span className={`font-black text-xs px-3 py-1 rounded-full ${log.value > 0 ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}`}>{log.value > 0 ? '+1' : '-1'}</span>
-                                                <button onClick={() => db.collection('artifacts').doc(currentAppId).collection('public').doc('data').collection('logs').doc(log.id).delete()} className="text-slate-200 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all"><Icon name="X" size={18} /></button>
+                                                <button onClick={() => firebase.firestore().collection('artifacts').doc(currentAppId).collection('public').doc('data').collection('logs').doc(log.id).delete()} className="text-slate-200 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all"><Icon name="X" size={18} /></button>
                                             </div>
                                         </div>
                                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-2 pt-3 border-t border-slate-50 text-[10px] font-bold text-slate-400 uppercase tracking-widest">
@@ -389,7 +394,7 @@
                                     <div className="space-y-4"><h3 className="text-[10px] font-black text-red-600 uppercase tracking-widest">Performance Deficits</h3><div className="grid grid-cols-1 gap-2">{POINT_MENU.negative.map(i => <button key={i.label} onClick={() => { setCustomReason(i.label); setCustomType('negative'); }} className={`w-full text-left p-4 rounded-xl border text-sm font-bold transition-all ${customReason === i.label && customType === 'negative' ? 'bg-red-600 text-white border-red-600 shadow-md' : 'border-red-100 bg-red-50/30 hover:bg-red-50'}`}>{i.label}</button>)}<button onClick={() => { setCustomType('negative'); setCustomReason(""); }} className={`w-full p-4 rounded-xl border text-sm font-bold ${customType === 'negative' && !POINT_MENU.negative.some(i => i.label === customReason) ? 'bg-red-600 text-white' : 'border-red-100 bg-red-50/30'}`}>Other Category...</button></div></div>
                                 </div>
                                 {customType && (
-                                    <div className="px-8 pb-8 space-y-4">
+                                    <div className="px-8 pb-8 space-y-4 animate-in">
                                         <div className="p-8 bg-slate-50 rounded-[2rem] border grid grid-cols-1 md:grid-cols-2 gap-6">
                                             <div><label className="text-[10px] font-black uppercase text-slate-400 mb-2 block tracking-widest">Authorized By</label><input type="text" className="w-full p-3 rounded-xl border focus:ring-1 focus:ring-slate-900 outline-none font-bold" value={loggedBy} onChange={e => setLoggedBy(e.target.value)} /></div>
                                             <div><label className="text-[10px] font-black uppercase text-slate-400 mb-2 block tracking-widest">Reason Label</label><input type="text" className="w-full p-3 rounded-xl border focus:ring-1 focus:ring-slate-900 outline-none font-bold" value={customReason} onChange={e => setCustomReason(e.target.value)} /></div>
@@ -413,14 +418,14 @@
                                     <div className="flex gap-3 text-slate-300 items-center">
                                         <button onClick={() => handleReset(viewingHistory, 'positive')} title="Reset Positive"><Icon name="Reset" size={18} className="hover:text-emerald-500 transition-colors" /></button>
                                         <button onClick={() => handleReset(viewingHistory, 'negative')} title="Reset Negative"><Icon name="Reset" size={18} className="hover:text-red-500 transition-colors" /></button>
-                                        <button onClick={async () => { if(confirm("Remove team member?")) { const target = employees.find(e => e.name === viewingHistory); if(!target) return; await db.collection('artifacts').doc(currentAppId).collection('public').doc('data').collection('employees').doc(target.id).delete(); setViewingHistory(null); } }}><Icon name="Trash" size={18} className="hover:text-red-500 transition-colors" /></button>
+                                        <button onClick={async () => { if(confirm("Remove team member?")) { const target = employees.find(e => e.name === viewingHistory); if(!target) return; await firebase.firestore().collection('artifacts').doc(currentAppId).collection('public').doc('data').collection('employees').doc(target.id).delete(); setViewingHistory(null); } }}><Icon name="Trash" size={18} className="hover:text-red-500 transition-colors" /></button>
                                         <button onClick={() => setViewingHistory(null)} className="ml-2"><Icon name="X" size={24} className="hover:text-slate-900 transition-colors" /></button>
                                     </div>
                                 </div>
                                 <div className="flex-1 overflow-y-auto p-8 custom-scrollbar space-y-8">
                                     <div>
                                         <h3 className="text-[10px] font-black uppercase text-slate-400 tracking-widest mb-6 flex items-center gap-2"><Icon name="Chart" size={14} /> Journey Visualization</h3>
-                                        <div className="bg-slate-50 border rounded-2xl p-6 h-48 flex items-end justify-between relative overflow-hidden">
+                                        <div className="bg-slate-50 border rounded-2xl p-6 h-48 flex items-end justify-between relative overflow-hidden text-center">
                                             <div className="absolute inset-0 p-6 flex flex-col justify-between pointer-events-none opacity-10"><div className="border-b border-slate-400 w-full" /><div className="border-b border-slate-400 w-full border-dashed" /><div className="border-b border-slate-400 w-full" /></div>
                                             <div className="flex items-end gap-1 w-full h-full relative z-10 tabular-nums">
                                                 {(() => {
@@ -429,7 +434,7 @@
                                                     const min = Math.min(...journey, 0);
                                                     const max = Math.max(...journey, 5);
                                                     return journey.map((val, idx) => {
-                                                        const height = ((val - min) / (max - min || 1)) * 100;
+                                                        const height = ((val - min) / (Math.max(max - min, 1))) * 100;
                                                         return <div key={idx} className={`flex-1 rounded-t-sm transition-all duration-500 ${val >= 0 ? 'bg-emerald-400/60' : 'bg-red-400/60'}`} style={{ height: `${Math.max(height, 5)}%` }} />;
                                                     });
                                                 })()}
@@ -437,7 +442,7 @@
                                         </div>
                                     </div>
                                     <div className="space-y-4">
-                                        <h3 className="text-[10px] font-black uppercase text-slate-400 tracking-widest flex items-center gap-2"><Icon name="History" size={14} /> Event Ledger</h3>
+                                        <h3 className="text-[10px] font-black uppercase text-slate-400 tracking-widest flex items-center gap-2"><Icon name="History" size={14} /> Historical Log</h3>
                                         {logs.filter(l => l.employeeName === viewingHistory).length === 0 ? <p className="text-slate-300 italic text-center py-10">No cloud records found.</p> : logs.filter(l => l.employeeName === viewingHistory).map(log => (
                                             <div key={log.id} className="bg-white p-4 border rounded-xl flex justify-between items-center shadow-sm transition-all hover:border-indigo-100">
                                                 <div><p className="text-sm font-bold text-slate-700">{log.label}</p><p className="text-[10px] uppercase text-slate-400 font-bold tracking-widest">{log.date} • By: {log.loggedBy}</p></div>
