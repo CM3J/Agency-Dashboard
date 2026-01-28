@@ -9,7 +9,7 @@
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Firebase SDKs (v8 Compat for maximum stability in single HTML files) -->
+    <!-- Firebase SDKs (v8 Compat for maximum stability in standalone files) -->
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
@@ -26,7 +26,7 @@
 <body>
     <div id="root">
         <div style="height: 100vh; display: flex; align-items: center; justify-content: center; text-align: center; color: #64748b;">
-            <div>
+            <div id="loading-fallback">
                 <p style="font-weight: 900; letter-spacing: -0.025em; font-size: 1.5rem; color: #0f172a;">INITIALIZING SYSTEM</p>
                 <p style="font-size: 0.875rem; margin-top: 0.5rem;">If this screen stays for more than 5 seconds, check your connection.</p>
             </div>
@@ -49,13 +49,6 @@
         const AGENCY_PASSWORD = "AgencyAccess2026";
         const ROSTER_COLLECTION = "agency_staff_v1";
         const LOGS_COLLECTION = "performance_ledger_v1";
-
-        // Initialize Firebase
-        if (!firebase.apps.length) {
-            firebase.initializeApp(firebaseConfig);
-        }
-        const db = firebase.firestore();
-        const auth = firebase.auth();
 
         const INITIAL_ROSTER = [
             "Aaron Teng", "Anna Larmuth", "Conner Foxcroft",
@@ -92,11 +85,11 @@
         // --- 2. COMPONENTS ---
         const Icon = ({ name, size = 20, className = "" }) => {
             const icons = {
-                Lock: <Fragment><rect width="18" height="11" x="3" y="11" rx="2" ry="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" /></Fragment>,
-                Dashboard: <Fragment><rect width="7" height="9" x="3" y="3" rx="1" /><rect width="7" height="5" x="14" y="3" rx="1" /><rect width="7" height="9" x="14" y="12" rx="1" /><rect width="7" height="5" x="3" y="16" rx="1" /></Fragment>,
+                Lock: <g><rect width="18" height="11" x="3" y="11" rx="2" ry="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" /></g>,
+                Dashboard: <g><rect width="7" height="9" x="3" y="3" rx="1" /><rect width="7" height="5" x="14" y="3" rx="1" /><rect width="7" height="9" x="14" y="12" rx="1" /><rect width="7" height="5" x="3" y="16" rx="1" /></g>,
                 Cloud: <path d="M17.5 19c2.5 0 4.5-2 4.5-4.5 0-2.3-1.8-4.3-4-4.5a7 7 0 1 0-13.5 1.5c-2.2.2-4 2.2-4 4.5C.5 17 2.5 19 5 19h12.5z" />,
-                Search: <Fragment><circle cx="11" cy="11" r="8" /><path d="m21 21-4.3-4.3" /></Fragment>,
-                UserPlus: <Fragment><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><line x1="19" x2="19" y1="8" y2="14" /><line x1="16" x2="22" y1="11" y2="11" /></Fragment>,
+                Search: <g><circle cx="11" cy="11" r="8" /><path d="m21 21-4.3-4.3" /></g>,
+                UserPlus: <g><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><line x1="19" x2="19" y1="8" y2="14" /><line x1="16" x2="22" y1="11" y2="11" /></g>,
                 TrendingUp: <path d="m22 7-8.5 8.5L9 11l-7 7M16 7h6v6" />,
                 TrendingDown: <path d="m22 17-8.5-8.5L9 13l-7-7M16 17h6v-6" />,
                 X: <path d="M18 6 6 18M6 6l12 12" />,
@@ -104,8 +97,8 @@
                 Reset: <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8M3 3v5h5" />,
                 History: <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8M3 3v5h5" />,
                 Plus: <path d="M12 5v14M5 12h14" />,
-                AlertTriangle: <Fragment><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z" /><line x1="12" x2="12" y1="9" y2="13" /><line x1="12" x2="12.01" y1="17" y2="17" /></Fragment>,
-                User: <Fragment><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2" /><circle cx="12" cy="7" r="4" /></Fragment>,
+                AlertTriangle: <g><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z" /><line x1="12" x2="12" y1="9" y2="13" /><line x1="12" x2="12.01" y1="17" y2="17" /></g>,
+                User: <g><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2" /><circle cx="12" cy="7" r="4" /></g>,
                 Sticky: <path d="M12 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7M14 3l7 7M14 3v7h7" />,
             };
             return (
@@ -151,7 +144,6 @@
             const [newEmployeeName, setNewEmployeeName] = useState("");
             const [error, setError] = useState(null);
 
-            // Logging form state
             const [loggedBy, setLoggedBy] = useState("");
             const [logNote, setLogNote] = useState("");
             const [customReason, setCustomReason] = useState("");
@@ -159,37 +151,47 @@
 
             // Handle Authentication
             useEffect(() => {
-                const unsubscribe = auth.onAuthStateChanged((u) => {
-                    if (u) setUser(u);
-                    else auth.signInAnonymously().catch(e => {
-                        if (e.code === "auth/operation-not-allowed") {
-                            setError("Firebase Error: Anonymous Auth is not enabled in Console.");
-                        } else {
-                            setError("Auth Denied: " + e.message);
-                        }
+                try {
+                    if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
+                    const auth = firebase.auth();
+                    const unsubscribe = auth.onAuthStateChanged((u) => {
+                        if (u) setUser(u);
+                        else auth.signInAnonymously().catch(e => {
+                            if (e.code === "auth/operation-not-allowed") {
+                                setError("Auth Error: Enable 'Anonymous' authentication in your Firebase Console.");
+                            } else {
+                                setError("Connection Denied: " + e.message);
+                            }
+                        });
                     });
-                });
-                return () => unsubscribe();
+                    return () => unsubscribe();
+                } catch (e) {
+                    setError("Initialization Failure: " + e.message);
+                }
             }, []);
 
             // Handle Data Sync
             useEffect(() => {
                 if (!user) return;
+                try {
+                    const db = firebase.firestore();
+                    const unsubEmp = db.collection(ROSTER_COLLECTION).onSnapshot(snap => {
+                        const list = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+                        if (list.length === 0) {
+                            INITIAL_ROSTER.forEach(name => db.collection(ROSTER_COLLECTION).add({ name }));
+                        }
+                        setEmployees(list);
+                        setLoading(false);
+                    }, err => setError("Firestore Access Error: Check your Database Rules. " + err.message));
 
-                const unsubEmp = db.collection(ROSTER_COLLECTION).onSnapshot(snap => {
-                    const list = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-                    if (list.length === 0) {
-                        INITIAL_ROSTER.forEach(name => db.collection(ROSTER_COLLECTION).add({ name }));
-                    }
-                    setEmployees(list);
-                    setLoading(false);
-                }, err => setError("Database Error: " + err.message));
+                    const unsubLog = db.collection(LOGS_COLLECTION).orderBy('timestamp', 'desc').onSnapshot(snap => {
+                        setLogs(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+                    });
 
-                const unsubLog = db.collection(LOGS_COLLECTION).orderBy('timestamp', 'desc').onSnapshot(snap => {
-                    setLogs(snap.docs.map(d => ({ id: d.id, ...d.data() })));
-                }, err => console.error("Logs error:", err));
-
-                return () => { unsubEmp(); unsubLog(); };
+                    return () => { unsubEmp(); unsubLog(); };
+                } catch (e) {
+                    setError("Database Sync Failed: " + e.message);
+                }
             }, [user]);
 
             const employeeStats = useMemo(() => {
@@ -209,6 +211,7 @@
             const handleLogPoint = async () => {
                 if (!loggedBy.trim() || !customReason.trim()) return;
                 try {
+                    const db = firebase.firestore();
                     await db.collection(LOGS_COLLECTION).add({
                         timestamp: Date.now(),
                         date: new Date().toLocaleDateString(),
@@ -219,24 +222,30 @@
                         note: logNote
                     });
                     setSelectedEmployee(null); setCustomType(null); setCustomReason(""); setLogNote(""); setLoggedBy("");
-                } catch(e) { alert("Save failed: " + e.message); }
+                } catch(e) { setError("Save failed: " + e.message); }
             };
 
             const handleReset = async (name, type) => {
                 if (!confirm(`Clear all ${type} points for ${name}?`)) return;
-                const snap = await db.collection(LOGS_COLLECTION).where('employeeName', '==', name).get();
-                const batch = db.batch();
-                snap.docs.forEach(doc => {
-                    const val = doc.data().value;
-                    if ((type === 'positive' && val > 0) || (type === 'negative' && val < 0)) batch.delete(doc.ref);
-                });
-                await batch.commit();
+                try {
+                    const db = firebase.firestore();
+                    const snap = await db.collection(LOGS_COLLECTION).where('employeeName', '==', name).get();
+                    const batch = db.batch();
+                    snap.docs.forEach(doc => {
+                        const val = doc.data().value;
+                        if ((type === 'positive' && val > 0) || (type === 'negative' && val < 0)) batch.delete(doc.ref);
+                    });
+                    await batch.commit();
+                } catch(e) { setError("Reset failed: " + e.message); }
             };
 
             const handleAddEmployee = async () => {
                 if (!newEmployeeName.trim()) return;
-                await db.collection(ROSTER_COLLECTION).add({ name: newEmployeeName.trim() });
-                setNewEmployeeName(""); setShowAddModal(false);
+                try {
+                    const db = firebase.firestore();
+                    await db.collection(ROSTER_COLLECTION).add({ name: newEmployeeName.trim() });
+                    setNewEmployeeName(""); setShowAddModal(false);
+                } catch(e) { setError("Add failed: " + e.message); }
             };
 
             if (error) return (
@@ -244,10 +253,10 @@
                     <div className="max-w-md bg-white p-10 rounded-3xl shadow-xl border border-red-200 animate-in">
                         <Icon name="AlertTriangle" className="text-red-500 mx-auto mb-4" size={48} />
                         <h2 className="text-xl font-black text-slate-900 mb-2 uppercase tracking-tighter">System Error</h2>
-                        <div className="text-sm text-slate-500 mb-6 bg-slate-50 p-4 rounded-xl text-left border font-medium">
+                        <div className="text-sm text-slate-500 mb-6 bg-slate-50 p-4 rounded-xl text-left border font-medium overflow-auto max-h-40 custom-scrollbar">
                             {error}
                         </div>
-                        <button onClick={() => window.location.reload()} className="w-full bg-slate-900 text-white px-8 py-3 rounded-xl font-bold uppercase text-xs tracking-widest shadow-lg">Retry Connection</button>
+                        <button onClick={() => window.location.reload()} className="w-full bg-slate-900 text-white px-8 py-3 rounded-xl font-bold uppercase text-xs tracking-widest shadow-lg hover:bg-slate-800 transition-all">Retry Connection</button>
                     </div>
                 </div>
             );
@@ -270,7 +279,7 @@
             if (loading) return (
                 <div className="h-screen flex flex-col items-center justify-center gap-4 bg-slate-50">
                     <div className="w-10 h-10 border-4 border-slate-900 border-t-transparent rounded-full animate-spin"></div>
-                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Synchronizing Cloud Data...</p>
+                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Synchronizing Data...</p>
                 </div>
             );
 
@@ -296,9 +305,9 @@
                         {activeTab === 'dashboard' ? (
                             <div className="max-w-6xl mx-auto space-y-8 animate-in">
                                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                                    <div className="bg-white p-6 rounded-2xl border shadow-sm"><p className="text-[9px] font-black uppercase text-slate-400 mb-2 tracking-widest">Global Positives</p><div className="text-3xl font-black text-emerald-600">{logs.filter(l => l.value > 0).length}</div></div>
-                                    <div className="bg-white p-6 rounded-2xl border shadow-sm"><p className="text-[9px] font-black uppercase text-slate-400 mb-2 tracking-widest">Global Negatives</p><div className="text-3xl font-black text-red-500">{logs.filter(l => l.value < 0).length}</div></div>
-                                    <div className="bg-white p-6 rounded-2xl border shadow-sm"><p className="text-[9px] font-black uppercase text-red-500 mb-2 tracking-widest">At-Risk Staff</p><div className="text-3xl font-black text-red-500">{employeeStats.filter(e => e.neg >= 3).length}</div></div>
+                                    <div className="bg-white p-6 rounded-2xl border shadow-sm"><p className="text-[9px] font-black uppercase text-slate-400 mb-2">Total Positives</p><div className="text-3xl font-black text-emerald-600 tabular-nums">{logs.filter(l => l.value > 0).length}</div></div>
+                                    <div className="bg-white p-6 rounded-2xl border shadow-sm"><p className="text-[9px] font-black uppercase text-slate-400 mb-2">Total Negatives</p><div className="text-3xl font-black text-red-500 tabular-nums">{logs.filter(l => l.value < 0).length}</div></div>
+                                    <div className="bg-white p-6 rounded-2xl border shadow-sm"><p className="text-[9px] font-black uppercase text-red-500 mb-2 tracking-widest">Warnings Required</p><div className="text-3xl font-black text-red-500 tabular-nums">{employeeStats.filter(e => e.neg >= 3).length}</div></div>
                                 </div>
                                 <div className="flex gap-4">
                                     <div className="flex-1 flex items-center bg-white px-4 rounded-xl border shadow-sm"><Icon name="Search" className="text-slate-400 mr-2"/><input type="text" placeholder="Search team member..." className="w-full bg-transparent border-none py-4 text-sm focus:ring-0" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} /></div>
@@ -306,10 +315,10 @@
                                 </div>
                                 <div className="bg-white rounded-3xl border shadow-sm overflow-hidden overflow-x-auto">
                                     <table className="w-full text-left">
-                                        <thead><tr className="bg-slate-50 border-b text-[10px] font-black text-slate-400 uppercase tracking-widest"><th className="px-6 py-4">Name</th><th className="px-6 py-4">Score (P/N)</th><th className="px-6 py-4">Momentum</th><th className="px-6 py-4">Alerts</th><th className="px-6 py-4"></th></tr></thead>
+                                        <thead><tr className="bg-slate-50 border-b text-[10px] font-black text-slate-400 uppercase tracking-widest"><th className="px-6 py-4">Name</th><th className="px-6 py-4">Status / Score</th><th className="px-6 py-4">Trend</th><th className="px-6 py-4">Alerts</th><th className="px-6 py-4"></th></tr></thead>
                                         <tbody className="divide-y">
                                             {filtered.map(emp => (
-                                                <tr key={emp.name} className="hover:bg-slate-50 group">
+                                                <tr key={emp.id || emp.name} className="hover:bg-slate-50 group">
                                                     <td className="px-6 py-5 font-bold text-slate-700 underline cursor-pointer hover:text-indigo-600" onClick={() => setViewingHistory(emp.name)}>{emp.name}</td>
                                                     <td className="px-6 py-5 flex gap-2"><span className="px-2 py-1 rounded bg-emerald-50 text-emerald-600 font-black text-[10px]">{emp.pos}P</span><span className={`px-2 py-1 rounded font-black text-[10px] ${emp.neg >= 3 ? 'bg-red-500 text-white shadow-sm' : 'bg-red-50 text-red-500'}`}>{emp.neg}N</span></td>
                                                     <td className="px-6 py-5"><Sparkline data={emp.journey} /></td>
@@ -323,12 +332,12 @@
                             </div>
                         ) : (
                             <div className="max-w-4xl mx-auto space-y-6 animate-in">
-                                <div className="flex justify-between items-end mb-8"><h2 className="text-2xl font-black uppercase text-slate-800 tracking-tighter">Activity Ledger</h2><button onClick={async () => { if(confirm("Clear ledger?")) { const snap = await db.collection(LOGS_COLLECTION).get(); const b = db.batch(); snap.docs.forEach(d => b.delete(d.ref)); await b.commit(); }}} className="text-[10px] text-red-500 font-bold uppercase hover:underline tracking-widest">Wipe Data</button></div>
+                                <div className="flex justify-between items-end mb-8"><h2 className="text-2xl font-black uppercase text-slate-800 tracking-tighter">Activity Ledger</h2><button onClick={async () => { if(confirm("Clear ledger?")) { const snap = await firebase.firestore().collection(LOGS_COLLECTION).get(); const b = firebase.firestore().batch(); snap.docs.forEach(d => b.delete(d.ref)); await b.commit(); }}} className="text-[10px] text-red-500 font-bold uppercase hover:underline tracking-widest">Wipe Data</button></div>
                                 {logs.map(log => (
                                     <div key={log.id} className="bg-white p-5 rounded-2xl border shadow-sm flex flex-col gap-3 group transition-all hover:border-slate-300">
                                         <div className="flex justify-between items-start">
                                             <div className="flex gap-4 items-center"><div className={`p-2 rounded-lg ${log.value > 0 ? 'bg-emerald-50 text-emerald-600' : 'bg-red-50 text-red-600'}`}><Icon name={log.value > 0 ? "TrendingUp" : "TrendingDown"} size={20} /></div><div><p className="font-bold">{log.employeeName}</p><p className="text-[10px] text-slate-400 font-black uppercase tracking-widest">{log.label} • {log.date}</p></div></div>
-                                            <div className="flex items-center gap-4"><span className={`font-black text-xs px-3 py-1 rounded-full ${log.value > 0 ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}`}>{log.value > 0 ? '+1' : '-1'}</span><button onClick={() => db.collection(LOGS_COLLECTION).doc(log.id).delete()} className="text-slate-200 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all"><Icon name="X" size={18} /></button></div>
+                                            <div className="flex items-center gap-4"><span className={`font-black text-xs px-3 py-1 rounded-full ${log.value > 0 ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}`}>{log.value > 0 ? '+1' : '-1'}</span><button onClick={() => firebase.firestore().collection(LOGS_COLLECTION).doc(log.id).delete()} className="text-slate-200 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all"><Icon name="X" size={18} /></button></div>
                                         </div>
                                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-2 pt-3 border-t border-slate-50 text-[10px] font-bold text-slate-400 uppercase tracking-widest"><div>By: {log.loggedBy}</div>{log.note && <div className="bg-slate-50 p-2 rounded-lg italic normal-case font-medium text-slate-600">"{log.note}"</div>}</div>
                                     </div>
@@ -337,11 +346,11 @@
                         )}
                     </main>
 
-                    {/* ENTRY MODAL */}
+                    {/* MODALS */}
                     {selectedEmployee && (
                         <div className="fixed inset-0 z-50 flex items-center justify-center p-6 bg-slate-900/60 backdrop-blur-sm overflow-y-auto">
                             <div className="bg-white w-full max-w-4xl rounded-[2.5rem] shadow-2xl my-auto overflow-hidden animate-in">
-                                <div className="bg-slate-900 p-8 text-white flex justify-between items-center"><div><h2 className="text-2xl font-black uppercase tracking-tighter">Submit Record</h2><p className="text-slate-400 text-sm mt-1">{selectedEmployee}</p></div><button onClick={() => { setSelectedEmployee(null); setCustomType(null); }}><Icon name="X" size={32} /></button></div>
+                                <div className="bg-slate-900 p-8 text-white flex justify-between items-center"><div><h2 className="text-2xl font-black uppercase tracking-tighter">Log Points</h2><p className="text-slate-400 text-sm mt-1">{selectedEmployee}</p></div><button onClick={() => { setSelectedEmployee(null); setCustomType(null); }}><Icon name="X" size={32} /></button></div>
                                 <div className="p-8 grid grid-cols-1 md:grid-cols-2 gap-8">
                                     <div className="space-y-4"><h3 className="text-[10px] font-black text-emerald-600 uppercase tracking-widest">Positive Factors</h3><div className="grid grid-cols-1 gap-2">
                                         {POINT_MENU.positive.map(i => <button key={i.label} onClick={() => { setCustomReason(i.label); setCustomType('positive'); }} className={`w-full text-left p-4 rounded-xl border text-sm font-bold transition-all ${customReason === i.label && customType === 'positive' ? 'bg-emerald-600 text-white border-emerald-600 shadow-md' : 'border-emerald-100 bg-emerald-50/30 hover:bg-emerald-50'}`}>{i.label}</button>)}
@@ -364,7 +373,6 @@
                         </div>
                     )}
 
-                    {/* HISTORY SIDEBAR */}
                     {viewingHistory && (
                         <div className="fixed inset-0 z-50 flex justify-end bg-slate-900/40 backdrop-blur-sm">
                             <div className="bg-white w-full max-w-xl h-full shadow-2xl flex flex-col animate-in">
@@ -376,7 +384,7 @@
                                     <div className="flex gap-3 text-slate-300 items-center">
                                         <button onClick={() => handleReset(viewingHistory, 'positive')} title="Reset Positive"><Icon name="Reset" size={18} className="hover:text-emerald-500 transition-colors" /></button>
                                         <button onClick={() => handleReset(viewingHistory, 'negative')} title="Reset Negative"><Icon name="Reset" size={18} className="hover:text-red-500 transition-colors" /></button>
-                                        <button onClick={async () => { if(confirm("Remove team member?")) { const target = employees.find(e => e.name === viewingHistory); if(target) { await db.collection(ROSTER_COLLECTION).doc(target.id).delete(); setViewingHistory(null); } }}}><Icon name="Trash" size={18} className="hover:text-red-500 transition-colors" /></button>
+                                        <button onClick={async () => { if(confirm("Remove member?")) { const target = employees.find(e => e.name === viewingHistory); if(target) { await firebase.firestore().collection(ROSTER_COLLECTION).doc(target.id).delete(); setViewingHistory(null); } }}}><Icon name="Trash" size={18} className="hover:text-red-500 transition-colors" /></button>
                                         <button onClick={() => setViewingHistory(null)} className="ml-2"><Icon name="X" size={24} className="hover:text-slate-900 transition-colors" /></button>
                                     </div>
                                 </div>
@@ -397,7 +405,6 @@
                         </div>
                     )}
 
-                    {/* ADD STAFF MODAL */}
                     {showAddModal && (
                         <div className="fixed inset-0 z-50 flex items-center justify-center p-6 bg-slate-900/40 backdrop-blur-sm">
                             <div className="bg-white p-10 rounded-[3rem] shadow-2xl w-full max-w-md animate-in">
@@ -410,6 +417,23 @@
                 </div>
             );
         }
+
+        // Global Error Tracker to replace "Blank Screen" with helpful info
+        window.addEventListener('error', function(event) {
+            const root = document.getElementById('root');
+            if (root) {
+                root.innerHTML = \`
+                    <div style="height: 100vh; display: flex; align-items: center; justify-content: center; padding: 20px; background: #fff1f2; color: #9f1239; font-family: sans-serif;">
+                        <div style="max-width: 500px; text-align: left;">
+                            <h2 style="font-weight: 900; font-size: 1.5rem; margin-bottom: 10px;">SCRIPT ERROR DETECTED</h2>
+                            <p style="margin-bottom: 20px;">The application crashed during startup. This is usually due to a missing script or syntax error in index.html.</p>
+                            <pre style="background: #ffffff; padding: 15px; border-radius: 10px; font-size: 12px; overflow: auto; border: 1px solid #fecdd3;">\${event.message}\\nLine: \${event.lineno}</pre>
+                            <button onclick="window.location.reload()" style="margin-top: 20px; background: #9f1239; color: white; padding: 10px 20px; border: none; border-radius: 5px; font-weight: bold; cursor: pointer;">Retry App</button>
+                        </div>
+                    </div>
+                \`;
+            }
+        });
 
         const root = ReactDOM.createRoot(document.getElementById('root'));
         root.render(<App />);
