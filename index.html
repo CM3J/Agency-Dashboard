@@ -9,31 +9,37 @@
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Firebase SDKs (v8 Compat for maximum stability in standalone files) -->
-    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-auth.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-firestore.js"></script>
+    <!-- Firebase v8 Compat (The most stable way for single-file apps) -->
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;900&display=swap');
-        body { font-family: 'Inter', sans-serif; -webkit-font-smoothing: antialiased; }
-        .animate-in { animation: fadeIn 0.25s ease-out; }
+        body { font-family: 'Inter', sans-serif; -webkit-font-smoothing: antialiased; background-color: #f8fafc; }
+        .animate-in { animation: fadeIn 0.3s ease-out; }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
         .custom-scrollbar::-webkit-scrollbar { width: 5px; }
         .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
         .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
     </style>
 </head>
-<body class="bg-slate-50 text-slate-900">
-    <div id="root"></div>
+<body>
+    <div id="root">
+        <!-- Static fallback in case JS fails -->
+        <div style="height: 100vh; display: flex; align-items: center; justify-content: center; text-align: center; color: #64748b;">
+            <div>
+                <p style="font-weight: 900; letter-spacing: -0.025em; font-size: 1.5rem; color: #0f172a;">INITIALIZING SYSTEM</p>
+                <p style="font-size: 0.875rem; margin-top: 0.5rem;">If this screen stays for more than 5 seconds, check your browser console.</p>
+            </div>
+        </div>
+    </div>
 
     <script type="text/babel">
         const { useState, useMemo, useEffect, Fragment } = React;
 
-        /**
-         * --- CONFIGURATION AREA ---
-         * Your Firebase keys have been added here to enable cloud sync on GitHub.
-         */
-        const MANUAL_CONFIG = {
+        // --- 1. CONFIGURATION ---
+        // These are your specific keys for the 'points-dashboard-78c0b' project.
+        const firebaseConfig = {
             apiKey: "AIzaSyAAvxcoVE8ZpvG4OC5VKuNnfzuLxidL83U",
             authDomain: "points-dashboard-78c0b.firebaseapp.com",
             projectId: "points-dashboard-78c0b",
@@ -43,26 +49,20 @@
         };
 
         const AGENCY_PASSWORD = "AgencyAccess2026";
-        
-        // Environment Handling: Priority 1: Gemini Environment | Priority 2: Your Manual Config
-        let firebaseConfig = null;
-        try {
-            if (typeof __firebase_config !== 'undefined' && __firebase_config) {
-                firebaseConfig = JSON.parse(__firebase_config);
-            } else if (MANUAL_CONFIG.apiKey) {
-                firebaseConfig = MANUAL_CONFIG;
-            }
-        } catch (e) { console.error("Config parse error", e); }
-        
-        const currentAppId = typeof __app_id !== 'undefined' ? __app_id : 'agency-performance-live';
+        const ROSTER_COLLECTION = "agency_staff_v1";
+        const LOGS_COLLECTION = "performance_ledger_v1";
 
-        // Initialize Firebase
-        let isFirebaseReady = false;
-        if (firebaseConfig && firebaseConfig.apiKey) {
+        // --- 2. FIREBASE INIT ---
+        let db = null;
+        let auth = null;
+        try {
             if (!firebase.apps.length) {
                 firebase.initializeApp(firebaseConfig);
             }
-            isFirebaseReady = true;
+            db = firebase.firestore();
+            auth = firebase.auth();
+        } catch (e) {
+            console.error("Firebase Setup Failed:", e);
         }
 
         const INITIAL_ROSTER = [
@@ -72,53 +72,23 @@
             "Nadya Weitz", "Reyner Nefdt", "Ryan Bosma"
         ];
 
-        const POINT_MENU = {
-            positive: [
-                { label: "Initiative & Proactivity", value: 1 },
-                { label: "Accountability / Follow-up", value: 1 },
-                { label: "Task Completion / Closing", value: 1 },
-                { label: "Soft Skills & Admin", value: 1 },
-                { label: "Knowledge Sharing", value: 1 },
-                { label: "Perfect Time-Tracking", value: 1 },
-                { label: "Peer-to-Peer Kudos", value: 1 },
-                { label: "Assisting Teammate", value: 1 },
-                { label: "New SOP Improvement", value: 1 },
-                { label: "High Performance Results", value: 1 },
-                { label: "Client Praise", value: 1 },
-            ],
-            negative: [
-                { label: "Governance Protocol Breach", value: -1 },
-                { label: "Minor Lateness", value: -1 },
-                { label: "Spelling/Grammar Error", value: -1 },
-                { label: "Missed Deadline", value: -1 },
-                { label: "Client-Facing Deadline Miss", value: -1 },
-                { label: "Critical Agency Error", value: -1 },
-                { label: "Unprofessional Conduct", value: -1 },
-            ]
-        };
-
+        // --- 3. UI COMPONENTS ---
         const Icon = ({ name, size = 20, className = "" }) => {
             const icons = {
-                Plus: <path d="M12 5v14M5 12h14" />,
+                Lock: <Fragment><rect width="18" height="11" x="3" y="11" rx="2" ry="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" /></Fragment>,
+                Dashboard: <Fragment><rect width="7" height="9" x="3" y="3" rx="1" /><rect width="7" height="5" x="14" y="3" rx="1" /><rect width="7" height="9" x="14" y="12" rx="1" /><rect width="7" height="5" x="3" y="16" rx="1" /></Fragment>,
+                Cloud: <path d="M17.5 19c2.5 0 4.5-2 4.5-4.5 0-2.3-1.8-4.3-4-4.5a7 7 0 1 0-13.5 1.5c-2.2.2-4 2.2-4 4.5C.5 17 2.5 19 5 19h12.5z" />,
+                Search: <Fragment><circle cx="11" cy="11" r="8" /><path d="m21 21-4.3-4.3" /></Fragment>,
+                UserPlus: <Fragment><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><line x1="19" x2="19" y1="8" y2="14" /><line x1="16" x2="22" y1="11" y2="11" /></Fragment>,
                 TrendingUp: <path d="m22 7-8.5 8.5L9 11l-7 7M16 7h6v6" />,
                 TrendingDown: <path d="m22 17-8.5-8.5L9 13l-7-7M16 17h6v-6" />,
-                Alert: <Fragment><circle cx="12" cy="12" r="10" /><line x1="12" x2="12" y1="8" y2="12" /><line x1="12" x2="12.01" y1="16" y2="16" /></Fragment>,
-                Award: <Fragment><circle cx="12" cy="8" r="7" /><polyline points="8.21 13.89 7 23 12 20 17 23 15.79 13.88" /></Fragment>,
-                Dashboard: <Fragment><rect width="7" height="9" x="3" y="3" rx="1" /><rect width="7" height="5" x="14" y="3" rx="1" /><rect width="7" height="9" x="14" y="12" rx="1" /><rect width="7" height="5" x="3" y="16" rx="1" /></Fragment>,
-                Search: <Fragment><circle cx="11" cy="11" r="8" /><path d="m21 21-4.3-4.3" /></Fragment>,
                 X: <path d="M18 6 6 18M6 6l12 12" />,
-                Chevron: <path d="m9 18 6-6-6-6" />,
-                User: <Fragment><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2" /><circle cx="12" cy="7" r="4" /></Fragment>,
-                Chart: <path d="M3 3v18h18M18 17V9M13 17V5M8 17v-3" />,
-                UserPlus: <Fragment><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><line x1="19" x2="19" y1="8" y2="14" /><line x1="16" x2="22" y1="11" y2="11" /></Fragment>,
                 Trash: <path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M10 11v6M14 11v6" />,
-                Lock: <Fragment><rect width="18" height="11" x="3" y="11" rx="2" ry="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" /></Fragment>,
-                Cloud: <path d="M17.5 19c2.5 0 4.5-2 4.5-4.5 0-2.3-1.8-4.3-4-4.5a7 7 0 1 0-13.5 1.5c-2.2.2-4 2.2-4 4.5C.5 17 2.5 19 5 19h12.5z" />,
                 Reset: <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8M3 3v5h5" />,
-                Sticky: <path d="M12 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7M14 3l7 7M14 3v7h7" />,
-                AlertTriangle: <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z" /><line x1="12" x2="12" y1="9" y2="13" /><line x1="12" x2="12.01" y1="17" y2="17" />
+                History: <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8M3 3v5h5" />,
+                Plus: <path d="M12 5v14M5 12h14" />,
+                Alert: <circle cx="12" cy="12" r="10" /><line x1="12" x2="12" y1="8" y2="12" /><line x1="12" x2="12.01" y1="16" y2="16" />
             };
-
             return (
                 <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
                     {icons[name] || null}
@@ -127,88 +97,73 @@
         };
 
         const Sparkline = ({ data }) => {
-            if (!data || data.length < 2) return <div className="h-6 w-24 bg-slate-100 rounded" />;
-            const min = Math.min(...data, 0);
-            const max = Math.max(...data, 5);
+            const safeData = Array.isArray(data) ? data : [0];
+            const min = Math.min(...safeData, 0);
+            const max = Math.max(...safeData, 5);
             const range = Math.max(max - min, 1);
-            const width = 100;
-            const height = 30;
-            const points = data.map((val, i) => {
-                const x = (i / (data.length - 1)) * width;
+            const width = 100, height = 30;
+            const points = safeData.map((val, i) => {
+                const x = safeData.length > 1 ? (i / (safeData.length - 1)) * width : width / 2;
                 const y = height - ((val - min) / range) * height;
                 return `${x},${y}`;
             }).join(' ');
+            const isUptrend = safeData[safeData.length - 1] >= safeData[0];
             return (
                 <svg width={width} height={height} className="overflow-visible">
-                    <polyline fill="none" stroke={data[data.length - 1] >= data[0] ? "#10b981" : "#ef4444"} strokeWidth="2" strokeLinejoin="round" points={points} />
+                    <polyline fill="none" stroke={isUptrend ? "#10b981" : "#ef4444"} strokeWidth="2" strokeLinejoin="round" points={points} />
                 </svg>
             );
         };
 
+        // --- 4. MAIN APP ---
         function App() {
-            const [isAuthenticated, setIsAuthenticated] = useState(false);
+            const [authenticated, setAuthenticated] = useState(false);
             const [passInput, setPassInput] = useState("");
-            const [passError, setPassError] = useState(false);
-            
             const [user, setUser] = useState(null);
             const [employees, setEmployees] = useState([]);
             const [logs, setLogs] = useState([]);
             const [loading, setLoading] = useState(true);
             const [activeTab, setActiveTab] = useState('dashboard');
-            const [searchTerm, setSearchTerm] = useState('');
-            const [selectedEmployee, setSelectedEmployee] = useState(null);
+            const [searchTerm, setSearchTerm] = useState("");
             const [viewingHistory, setViewingHistory] = useState(null);
+            const [selectedEmployee, setSelectedEmployee] = useState(null);
             const [showAddModal, setShowAddModal] = useState(false);
             const [newEmployeeName, setNewEmployeeName] = useState("");
+            const [error, setError] = useState(null);
+
+            // Logging form state
             const [loggedBy, setLoggedBy] = useState("");
             const [logNote, setLogNote] = useState("");
             const [customReason, setCustomReason] = useState("");
             const [customType, setCustomType] = useState(null);
 
-            // Auth Loop
+            // Handle Authentication
             useEffect(() => {
-                if (!isFirebaseReady) {
-                    setLoading(false);
+                if (!auth) {
+                    setError("Firebase Authentication is not available.");
                     return;
                 }
-                const auth = firebase.auth();
-                const init = async () => {
-                    try {
-                        if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-                            await auth.signInWithCustomToken(__initial_auth_token);
-                        } else {
-                            await auth.signInAnonymously();
-                        }
-                    } catch (e) { console.error("Auth error:", e); }
-                };
-                init();
-                return auth.onAuthStateChanged(setUser);
+                const unsubscribe = auth.onAuthStateChanged((u) => {
+                    if (u) setUser(u);
+                    else auth.signInAnonymously().catch(e => setError("Anonymous Login Denied: " + e.message));
+                });
+                return () => unsubscribe();
             }, []);
 
-            // Data Sync
+            // Handle Data Sync
             useEffect(() => {
-                if (!user || !isFirebaseReady) return;
-                const db = firebase.firestore();
-                const baseRef = db.collection('artifacts').doc(currentAppId).collection('public').doc('data');
-                
-                const unsubEmp = baseRef.collection('employees').onSnapshot(snap => {
+                if (!user || !db) return;
+
+                const unsubEmp = db.collection(ROSTER_COLLECTION).onSnapshot(snap => {
                     const list = snap.docs.map(d => ({ id: d.id, ...d.data() }));
                     if (list.length === 0) {
-                        const batch = db.batch();
-                        INITIAL_ROSTER.forEach(name => {
-                            const newDoc = baseRef.collection('employees').doc();
-                            batch.set(newDoc, { name });
-                        });
-                        batch.commit();
+                        INITIAL_ROSTER.forEach(name => db.collection(ROSTER_COLLECTION).add({ name }));
                     }
                     setEmployees(list);
                     setLoading(false);
-                }, err => {
-                    console.error("Firestore Permission Error.", err);
-                    setLoading(false);
-                });
+                }, err => setError("Database Access Error (Firestore Rules?): " + err.message));
 
-                const unsubLog = baseRef.collection('logs').orderBy('timestamp', 'desc').onSnapshot(snap => {
+                const unsubLog = db.collection(LOGS_COLLECTION).orderBy('timestamp', 'desc').onSnapshot(snap => {
                     setLogs(snap.docs.map(d => ({ id: d.id, ...d.data() })));
                 });
 
@@ -225,19 +180,13 @@
                         journey.push(total);
                         if (l.value > 0) pos++; else neg++;
                     });
-                    
-                    let status = "Stable", action = "Keep Monitoring", color = "text-slate-500", bg = "bg-slate-100";
-                    if (pos >= 10) { status = "Elite", action = "REWARD ELIGIBLE", color = "text-emerald-600 font-bold", bg = "bg-emerald-50"; }
-                    else if (neg >= 3) { status = "At Risk", action = "WARNING REQUIRED", color = "text-red-700 font-bold", bg = "bg-red-50"; }
-                    else if (pos >= 5) { status = "Rising", action = "Success Streak", color = "text-teal-600", bg = "bg-teal-50"; }
-                    
-                    return { ...emp, pos, neg, journey, status, action, color, bg };
+                    return { ...emp, pos, neg, journey };
                 });
             }, [logs, employees]);
 
             const handleLogPoint = async () => {
-                if (!loggedBy.trim() || !customReason.trim() || !isFirebaseReady) return;
-                await firebase.firestore().collection('artifacts').doc(currentAppId).collection('public').doc('data').collection('logs').add({
+                if (!loggedBy.trim() || !customReason.trim() || !db) return;
+                await db.collection(LOGS_COLLECTION).add({
                     timestamp: Date.now(),
                     date: new Date().toLocaleDateString(),
                     employeeName: selectedEmployee,
@@ -250,9 +199,8 @@
             };
 
             const handleReset = async (name, type) => {
-                if (!isFirebaseReady || !confirm(`Reset all ${type} points for ${name}?`)) return;
-                const db = firebase.firestore();
-                const snap = await db.collection('artifacts').doc(currentAppId).collection('public').doc('data').collection('logs').where('employeeName', '==', name).get();
+                if (!confirm(`Clear all ${type} points for ${name}?`)) return;
+                const snap = await db.collection(LOGS_COLLECTION).where('employeeName', '==', name).get();
                 const batch = db.batch();
                 snap.docs.forEach(doc => {
                     const val = doc.data().value;
@@ -261,99 +209,79 @@
                 await batch.commit();
             };
 
-            const handleAddEmployee = async () => {
-                if (!newEmployeeName.trim() || !isFirebaseReady) return;
-                await firebase.firestore().collection('artifacts').doc(currentAppId).collection('public').doc('data').collection('employees').add({ name: newEmployeeName.trim() });
-                setNewEmployeeName(""); setShowAddModal(false);
-            };
-
-            // Setup Required Screen (Only on GitHub if MANUAL_CONFIG is empty)
-            if (!isFirebaseReady && typeof __firebase_config === 'undefined') {
-                return (
-                    <div className="h-screen flex items-center justify-center bg-slate-900 p-6 text-center">
-                        <div className="max-w-md bg-white rounded-3xl p-10 shadow-2xl animate-in">
-                            <div className="bg-red-50 text-red-500 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-6">
-                                <Icon name="AlertTriangle" size={32} />
-                            </div>
-                            <h2 className="text-2xl font-black uppercase text-slate-900 mb-4">Connection Required</h2>
-                            <p className="text-slate-500 mb-6 text-sm">To use this dashboard on GitHub, you must connect it to your Firebase project.</p>
-                            <div className="bg-slate-50 p-4 rounded-xl text-left text-[11px] font-mono text-slate-600 mb-6 leading-relaxed">
-                                1. Open this file in a text editor.<br/>
-                                2. Find the <b className="text-indigo-600">MANUAL_CONFIG</b> block.<br/>
-                                3. Paste the keys you received from the console.<br/>
-                                4. Save and commit back to GitHub.
-                            </div>
-                            <button onClick={() => window.location.reload()} className="w-full bg-slate-900 text-white py-4 rounded-xl font-black text-xs uppercase tracking-widest shadow-lg">Refresh After Setup</button>
-                        </div>
+            if (error) return (
+                <div className="h-screen flex items-center justify-center p-6 bg-red-50 text-center">
+                    <div className="max-w-md bg-white p-10 rounded-3xl shadow-xl border border-red-200">
+                        <Icon name="Alert" className="text-red-500 mx-auto mb-4" size={48} />
+                        <h2 className="text-xl font-black text-slate-900 mb-2 uppercase">System Error</h2>
+                        <p className="text-sm text-slate-500 mb-6">{error}</p>
+                        <button onClick={() => window.location.reload()} className="bg-slate-900 text-white px-8 py-3 rounded-xl font-bold uppercase text-xs">Retry Connection</button>
                     </div>
-                );
-            }
+                </div>
+            );
 
-            if (!isAuthenticated) {
-                return (
-                    <div className="h-screen flex items-center justify-center bg-slate-900 p-6">
-                        <div className="max-w-sm w-full bg-white rounded-[2.5rem] p-10 shadow-2xl text-center animate-in">
-                            <div className="inline-flex p-4 rounded-3xl bg-indigo-50 text-indigo-600 mb-6"><Icon name="Lock" size={32} /></div>
-                            <h2 className="text-2xl font-black uppercase tracking-tighter text-slate-900 mb-2">Agency Access</h2>
-                            <p className="text-slate-400 text-sm mb-8 font-medium">Please enter office access key.</p>
-                            <form onSubmit={(e) => { e.preventDefault(); if(passInput === AGENCY_PASSWORD) setIsAuthenticated(true); else setPassError(true); }} className="space-y-4">
-                                <input autoFocus type="password" placeholder="Access Key" className={`w-full p-4 rounded-2xl border bg-slate-50 text-center font-bold outline-none transition-all ${passError ? 'border-red-500 ring-2 ring-red-100' : 'focus:ring-2 focus:ring-indigo-500 border-slate-100'}`} value={passInput} onChange={e => setPassInput(e.target.value)} />
-                                <button type="submit" className="w-full bg-slate-900 text-white py-4 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-indigo-600 transition-all shadow-lg">Access Console</button>
-                            </form>
-                        </div>
+            if (!authenticated) return (
+                <div className="h-screen flex items-center justify-center bg-slate-900 p-6">
+                    <div className="max-w-sm w-full bg-white p-10 rounded-[2.5rem] shadow-2xl text-center animate-in">
+                        <div className="inline-flex p-4 rounded-3xl bg-indigo-50 text-indigo-600 mb-6"><Icon name="Lock" size={32} /></div>
+                        <h2 className="text-2xl font-black text-slate-900 uppercase tracking-tighter mb-2">Agency Access</h2>
+                        <p className="text-slate-400 text-sm mb-8">Enter the office access key.</p>
+                        <form onSubmit={(e) => { e.preventDefault(); if(passInput === AGENCY_PASSWORD) setAuthenticated(true); else alert("Invalid Key"); }} className="space-y-4">
+                            <input autoFocus type="password" placeholder="Access Key" className="w-full p-4 rounded-2xl border bg-slate-50 text-center font-bold outline-none" value={passInput} onChange={e => setPassInput(e.target.value)} />
+                            <button type="submit" className="w-full bg-slate-900 text-white py-4 rounded-2xl font-black uppercase text-xs tracking-widest shadow-lg">Access Dashboard</button>
+                        </form>
                     </div>
-                );
-            }
+                </div>
+            );
 
             if (loading) return (
-                <div className="h-screen flex items-center justify-center bg-white flex-col gap-4">
-                    <div className="w-10 h-10 border-4 border-slate-900 border-t-transparent rounded-full animate-spin" />
-                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Syncing Records...</p>
+                <div className="h-screen flex flex-col items-center justify-center gap-4">
+                    <div className="w-10 h-10 border-4 border-slate-900 border-t-transparent rounded-full animate-spin"></div>
+                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Syncing Cloud...</p>
                 </div>
             );
 
             const filtered = employeeStats.filter(e => e.name.toLowerCase().includes(searchTerm.toLowerCase()));
 
             return (
-                <div className="flex flex-col h-screen overflow-hidden animate-in">
+                <div className="flex flex-col h-screen overflow-hidden">
                     <header className="bg-white border-b px-6 py-4 flex justify-between items-center shadow-sm z-20">
                         <div className="flex items-center gap-3">
-                            <div className="bg-slate-900 p-2 rounded-lg text-white"><Icon name="Dashboard" size={24} /></div>
+                            <div className="bg-slate-900 p-2 rounded-lg text-white"><Icon name="Dashboard" /></div>
                             <div>
-                                <h1 className="text-lg font-bold uppercase tracking-tighter leading-none">Office Console</h1>
-                                <p className="text-[10px] text-slate-400 font-black mt-1 uppercase tracking-widest flex items-center gap-1"><Icon name="Cloud" size={10} className="text-indigo-500" /> Cloud Sync Active</p>
+                                <h1 className="text-lg font-black uppercase tracking-tighter leading-none">Office Console</h1>
+                                <p className="text-[10px] font-bold uppercase text-slate-400 mt-1 flex items-center gap-1"><Icon name="Cloud" size={10} className="text-indigo-500" /> Cloud Backup Active</p>
                             </div>
                         </div>
-                        <nav className="flex bg-slate-100 p-1 rounded-lg border">
-                            <button onClick={() => setActiveTab('dashboard')} className={`px-6 py-1.5 rounded-md text-sm font-semibold transition-all ${activeTab === 'dashboard' ? 'bg-white shadow-sm text-slate-900' : 'text-slate-500 hover:text-slate-700'}`}>Dashboard</button>
-                            <button onClick={() => setActiveTab('ledger')} className={`px-6 py-1.5 rounded-md text-sm font-semibold transition-all ${activeTab === 'ledger' ? 'bg-white shadow-sm text-slate-900' : 'text-slate-500 hover:text-slate-700'}`}>Full Logs</button>
+                        <nav className="flex bg-slate-100 p-1 rounded-xl">
+                            <button onClick={() => setActiveTab('dashboard')} className={`px-6 py-1.5 rounded-lg text-xs font-bold transition-all ${activeTab === 'dashboard' ? 'bg-white shadow-sm text-slate-900' : 'text-slate-500'}`}>Dashboard</button>
+                            <button onClick={() => setActiveTab('ledger')} className={`px-6 py-1.5 rounded-lg text-xs font-bold transition-all ${activeTab === 'ledger' ? 'bg-white shadow-sm text-slate-900' : 'text-slate-500'}`}>Ledger</button>
                         </nav>
                     </header>
 
                     <main className="flex-1 overflow-y-auto p-8 custom-scrollbar">
                         {activeTab === 'dashboard' ? (
-                            <div className="max-w-6xl mx-auto space-y-8">
+                            <div className="max-w-6xl mx-auto space-y-8 animate-in">
                                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                                    <div className="bg-white p-6 rounded-2xl border shadow-sm"><p className="text-[9px] font-black uppercase text-slate-400 mb-2 tracking-widest">Global Positives</p><div className="text-3xl font-black text-emerald-600 tabular-nums">{logs.filter(l => l.value > 0).length}</div></div>
-                                    <div className="bg-white p-6 rounded-2xl border shadow-sm"><p className="text-[9px] font-black uppercase text-slate-400 mb-2 tracking-widest">Global Negatives</p><div className="text-3xl font-black text-red-500 tabular-nums">{logs.filter(l => l.value < 0).length}</div></div>
-                                    <div className="bg-white p-6 rounded-2xl border shadow-sm"><p className="text-[9px] font-black uppercase text-red-500 mb-2 tracking-widest">At-Risk Staff</p><div className="text-3xl font-black text-red-500 tabular-nums">{employeeStats.filter(e => e.neg >= 3).length}</div></div>
+                                    <div className="bg-white p-6 rounded-2xl border shadow-sm"><p className="text-[9px] font-black uppercase text-slate-400 mb-2">Total Positives</p><div className="text-3xl font-black text-emerald-600">{logs.filter(l => l.value > 0).length}</div></div>
+                                    <div className="bg-white p-6 rounded-2xl border shadow-sm"><p className="text-[9px] font-black uppercase text-slate-400 mb-2">Total Negatives</p><div className="text-3xl font-black text-red-500">{logs.filter(l => l.value < 0).length}</div></div>
+                                    <div className="bg-white p-6 rounded-2xl border shadow-sm"><p className="text-[9px] font-black uppercase text-red-500 mb-2">At-Risk Staff</p><div className="text-3xl font-black text-red-500">{employeeStats.filter(e => e.neg >= 3).length}</div></div>
                                 </div>
                                 <div className="flex gap-4">
-                                    <div className="flex-1 flex items-center bg-white px-4 rounded-xl border shadow-sm"><Icon name="Search" size={18} className="text-slate-400 mr-2" /><input type="text" placeholder="Search staff..." className="w-full bg-transparent border-none py-3 text-sm focus:ring-0" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} /></div>
-                                    <button onClick={() => setShowAddModal(true)} className="bg-slate-900 text-white px-6 py-3 rounded-xl font-bold text-xs uppercase tracking-widest hover:bg-indigo-600 transition-all flex items-center gap-2 shadow-lg shadow-slate-200"><Icon name="UserPlus" size={16} /> Manage Team</button>
+                                    <div className="flex-1 flex items-center bg-white px-4 rounded-xl border shadow-sm"><Icon name="Search" className="text-slate-400 mr-2"/><input type="text" placeholder="Filter team..." className="w-full bg-transparent border-none py-4 text-sm focus:ring-0" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} /></div>
+                                    <button onClick={() => setShowAddModal(true)} className="bg-slate-900 text-white px-8 rounded-xl font-black uppercase text-xs hover:bg-indigo-600 transition-all flex items-center gap-2 shadow-lg shadow-slate-200"><Icon name="UserPlus" size={16}/> Manage Team</button>
                                 </div>
-                                <div className="bg-white rounded-2xl border shadow-sm overflow-hidden overflow-x-auto">
-                                    <table className="w-full text-left border-collapse min-w-[700px]">
-                                        <thead><tr className="bg-slate-50 border-b text-[10px] font-black text-slate-400 uppercase tracking-widest"><th className="px-6 py-4">Employee</th><th className="px-6 py-4">P / N</th><th className="px-6 py-4">Trend</th><th className="px-6 py-4">Status</th><th className="px-6 py-4">Action</th><th className="px-6 py-4"></th></tr></thead>
+                                <div className="bg-white rounded-3xl border shadow-sm overflow-hidden overflow-x-auto">
+                                    <table className="w-full text-left">
+                                        <thead><tr className="bg-slate-50 border-b text-[10px] font-black text-slate-400 uppercase tracking-widest"><th className="px-6 py-4">Name</th><th className="px-6 py-4">Status / Score</th><th className="px-6 py-4">Trend</th><th className="px-6 py-4">Next Action</th><th className="px-6 py-4"></th></tr></thead>
                                         <tbody className="divide-y">
                                             {filtered.map(emp => (
                                                 <tr key={emp.name} className="hover:bg-slate-50 group">
-                                                    <td className="px-6 py-4 font-bold text-slate-700 underline cursor-pointer hover:text-indigo-600" onClick={() => setViewingHistory(emp.name)}>{emp.name}</td>
-                                                    <td className="px-6 py-4 flex gap-2"><span className="px-2 py-1 rounded bg-emerald-50 text-emerald-600 font-black text-[10px]">{emp.pos}P</span><span className={`px-2 py-1 rounded font-black text-[10px] ${emp.neg >= 3 ? 'bg-red-500 text-white shadow-sm' : 'bg-red-50 text-red-500'}`}>{emp.neg}N</span></td>
-                                                    <td className="px-6 py-4"><Sparkline data={emp.journey} /></td>
-                                                    <td className="px-6 py-4 text-[10px] font-black uppercase"><span className={`${emp.bg} ${emp.color} px-2 py-1 rounded`}>{emp.status}</span></td>
-                                                    <td className="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-tight">{emp.action}</td>
-                                                    <td className="px-6 py-4 text-right"><button onClick={() => setSelectedEmployee(emp.name)} className="bg-slate-900 text-white text-[9px] font-bold px-3 py-1.5 rounded-lg opacity-0 group-hover:opacity-100 transition-all uppercase tracking-widest shadow-sm">Log Point</button></td>
+                                                    <td className="px-6 py-5 font-bold text-slate-700 underline cursor-pointer hover:text-indigo-600" onClick={() => setViewingHistory(emp.name)}>{emp.name}</td>
+                                                    <td className="px-6 py-5 flex gap-2"><span className="px-2 py-1 rounded bg-emerald-50 text-emerald-600 font-black text-[10px]">{emp.pos}P</span><span className={`px-2 py-1 rounded font-black text-[10px] ${emp.neg >= 3 ? 'bg-red-500 text-white' : 'bg-red-50 text-red-500'}`}>{emp.neg}N</span></td>
+                                                    <td className="px-6 py-5"><Sparkline data={emp.journey} /></td>
+                                                    <td className="px-6 py-5 text-[10px] font-bold text-slate-400 uppercase tracking-tight">{emp.neg >= 3 ? 'WARNING REQUIRED' : 'KEEP MONITORING'}</td>
+                                                    <td className="px-6 py-5 text-right"><button onClick={() => setSelectedEmployee(emp.name)} className="bg-slate-900 text-white text-[9px] font-bold px-4 py-2 rounded-lg opacity-0 group-hover:opacity-100 transition-all uppercase tracking-widest">Log Point</button></td>
                                                 </tr>
                                             ))}
                                         </tbody>
@@ -362,106 +290,87 @@
                             </div>
                         ) : (
                             <div className="max-w-4xl mx-auto space-y-6 animate-in">
-                                <div className="flex justify-between items-end mb-8"><h2 className="text-2xl font-black text-slate-800 uppercase tracking-tighter">Verified Activity Ledger</h2><button onClick={async () => { if(confirm("Clear ALL logs?")) { const snap = await firebase.firestore().collection('artifacts').doc(currentAppId).collection('public').doc('data').collection('logs').get(); const b = firebase.firestore().batch(); snap.docs.forEach(d => b.delete(d.ref)); await b.commit(); }}} className="text-[10px] text-red-500 font-bold uppercase hover:underline">Erase Ledger</button></div>
+                                <div className="flex justify-between items-end mb-8"><h2 className="text-2xl font-black uppercase text-slate-800 tracking-tighter">Activity Ledger</h2><button onClick={async () => { if(confirm("Clear ledger?")) { const snap = await db.collection(LOGS_COLLECTION).get(); const b = db.batch(); snap.docs.forEach(d => b.delete(d.ref)); await b.commit(); }}} className="text-[10px] text-red-500 font-bold uppercase hover:underline tracking-widest">Wipe Data</button></div>
                                 {logs.map(log => (
                                     <div key={log.id} className="bg-white p-5 rounded-2xl border shadow-sm flex flex-col gap-3 group transition-all hover:border-slate-300">
                                         <div className="flex justify-between items-start">
-                                            <div className="flex gap-4 items-center">
-                                                <div className={`p-2 rounded-lg ${log.value > 0 ? 'bg-emerald-50 text-emerald-600' : 'bg-red-50 text-red-600'}`}><Icon name={log.value > 0 ? "TrendingUp" : "TrendingDown"} size={20} /></div>
-                                                <div><p className="font-bold">{log.employeeName}</p><p className="text-[10px] text-slate-400 font-black uppercase tracking-widest">{log.label} • {log.date}</p></div>
-                                            </div>
-                                            <div className="flex items-center gap-4">
-                                                <span className={`font-black text-xs px-3 py-1 rounded-full ${log.value > 0 ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}`}>{log.value > 0 ? '+1' : '-1'}</span>
-                                                <button onClick={() => firebase.firestore().collection('artifacts').doc(currentAppId).collection('public').doc('data').collection('logs').doc(log.id).delete()} className="text-slate-200 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all"><Icon name="X" size={18} /></button>
-                                            </div>
+                                            <div className="flex gap-4 items-center"><div className={`p-2 rounded-lg ${log.value > 0 ? 'bg-emerald-50 text-emerald-600' : 'bg-red-50 text-red-600'}`}><Icon name={log.value > 0 ? "TrendingUp" : "TrendingDown"} size={20} /></div><div><p className="font-bold">{log.employeeName}</p><p className="text-[10px] text-slate-400 font-black uppercase tracking-widest">{log.label} • {log.date}</p></div></div>
+                                            <div className="flex items-center gap-4"><span className={`font-black text-xs px-3 py-1 rounded-full ${log.value > 0 ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}`}>{log.value > 0 ? '+1' : '-1'}</span><button onClick={() => db.collection(LOGS_COLLECTION).doc(log.id).delete()} className="text-slate-200 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all"><Icon name="X" size={18} /></button></div>
                                         </div>
-                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-2 pt-3 border-t border-slate-50 text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-                                            <div>Authorized By: {log.loggedBy}</div>
-                                            {log.note && <div className="bg-slate-50 p-2 rounded-lg italic normal-case font-medium text-slate-600 flex gap-2 items-start"><Icon name="Sticky" size={12} className="mt-0.5" /><span>"{log.note}"</span></div>}
-                                        </div>
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-2 pt-3 border-t border-slate-50 text-[10px] font-bold text-slate-400 uppercase tracking-widest"><div>By: {log.loggedBy}</div>{log.note && <div className="bg-slate-50 p-2 rounded-lg italic normal-case font-medium text-slate-600">"{log.note}"</div>}</div>
                                     </div>
                                 ))}
                             </div>
                         )}
                     </main>
 
+                    {/* ENTRY MODAL */}
                     {selectedEmployee && (
                         <div className="fixed inset-0 z-50 flex items-center justify-center p-6 bg-slate-900/60 backdrop-blur-sm overflow-y-auto">
                             <div className="bg-white w-full max-w-4xl rounded-[2.5rem] shadow-2xl my-auto overflow-hidden animate-in">
-                                <div className="bg-slate-900 p-8 text-white flex justify-between items-center"><div><h2 className="text-2xl font-black uppercase tracking-tighter leading-none">Submit Record</h2><p className="text-slate-400 text-sm mt-1">Employee: {selectedEmployee}</p></div><button onClick={() => setSelectedEmployee(null)}><Icon name="X" size={32} /></button></div>
+                                <div className="bg-slate-900 p-8 text-white flex justify-between items-center"><div><h2 className="text-2xl font-black uppercase tracking-tighter">Submit Record</h2><p className="text-slate-400 text-sm mt-1">{selectedEmployee}</p></div><button onClick={() => setSelectedEmployee(null)}><Icon name="X" size={32} /></button></div>
                                 <div className="p-8 grid grid-cols-1 md:grid-cols-2 gap-8">
-                                    <div className="space-y-4"><h3 className="text-[10px] font-black text-emerald-600 uppercase tracking-widest">Positive Factors</h3><div className="grid grid-cols-1 gap-2">{POINT_MENU.positive.map(i => <button key={i.label} onClick={() => { setCustomReason(i.label); setCustomType('positive'); }} className={`w-full text-left p-4 rounded-xl border text-sm font-bold transition-all ${customReason === i.label && customType === 'positive' ? 'bg-emerald-600 text-white border-emerald-600 shadow-md' : 'border-emerald-100 bg-emerald-50/30 hover:bg-emerald-50'}`}>{i.label}</button>)}<button onClick={() => { setCustomType('positive'); setCustomReason(""); }} className={`w-full p-4 rounded-xl border text-sm font-bold ${customType === 'positive' && !POINT_MENU.positive.some(i => i.label === customReason) ? 'bg-emerald-600 text-white' : 'border-emerald-100 bg-emerald-50/30'}`}>Other Category...</button></div></div>
-                                    <div className="space-y-4"><h3 className="text-[10px] font-black text-red-600 uppercase tracking-widest">Performance Deficits</h3><div className="grid grid-cols-1 gap-2">{POINT_MENU.negative.map(i => <button key={i.label} onClick={() => { setCustomReason(i.label); setCustomType('negative'); }} className={`w-full text-left p-4 rounded-xl border text-sm font-bold transition-all ${customReason === i.label && customType === 'negative' ? 'bg-red-600 text-white border-red-600 shadow-md' : 'border-red-100 bg-red-50/30 hover:bg-red-50'}`}>{i.label}</button>)}<button onClick={() => { setCustomType('negative'); setCustomReason(""); }} className={`w-full p-4 rounded-xl border text-sm font-bold ${customType === 'negative' && !POINT_MENU.negative.some(i => i.label === customReason) ? 'bg-red-600 text-white' : 'border-red-100 bg-red-50/30'}`}>Other Category...</button></div></div>
+                                    <div className="space-y-4"><h3 className="text-[10px] font-black text-emerald-600 uppercase tracking-widest">Positive Factors</h3><div className="grid grid-cols-1 gap-2">
+                                        {POINT_MENU.positive.map(i => <button key={i.label} onClick={() => { setCustomReason(i.label); setCustomType('positive'); }} className={`w-full text-left p-4 rounded-xl border text-sm font-bold transition-all ${customReason === i.label && customType === 'positive' ? 'bg-emerald-600 text-white border-emerald-600 shadow-md' : 'border-emerald-100 bg-emerald-50/30 hover:bg-emerald-50'}`}>{i.label}</button>)}
+                                        <button onClick={() => { setCustomType('positive'); setCustomReason(""); }} className={`w-full p-4 rounded-xl border text-sm font-bold ${customType === 'positive' && !POINT_MENU.positive.some(i => i.label === customReason) ? 'bg-emerald-600 text-white' : 'border-emerald-100 bg-emerald-50/30'}`}>Other Category...</button>
+                                    </div></div>
+                                    <div className="space-y-4"><h3 className="text-[10px] font-black text-red-600 uppercase tracking-widest">Performance Deficits</h3><div className="grid grid-cols-1 gap-2">
+                                        {POINT_MENU.negative.map(i => <button key={i.label} onClick={() => { setCustomReason(i.label); setCustomType('negative'); }} className={`w-full text-left p-4 rounded-xl border text-sm font-bold transition-all ${customReason === i.label && customType === 'negative' ? 'bg-red-600 text-white border-red-600 shadow-md' : 'border-red-100 bg-red-50/30 hover:bg-red-50'}`}>{i.label}</button>)}
+                                        <button onClick={() => { setCustomType('negative'); setCustomReason(""); }} className={`w-full p-4 rounded-xl border text-sm font-bold ${customType === 'negative' && !POINT_MENU.negative.some(i => i.label === customReason) ? 'bg-red-600 text-white' : 'border-red-100 bg-red-50/30'}`}>Other Category...</button>
+                                    </div></div>
                                 </div>
                                 {customType && (
-                                    <div className="px-8 pb-8 space-y-4 animate-in">
-                                        <div className="p-8 bg-slate-50 rounded-[2rem] border grid grid-cols-1 md:grid-cols-2 gap-6">
-                                            <div><label className="text-[10px] font-black uppercase text-slate-400 mb-2 block tracking-widest">Authorized By</label><input type="text" className="w-full p-3 rounded-xl border focus:ring-1 focus:ring-slate-900 outline-none font-bold" value={loggedBy} onChange={e => setLoggedBy(e.target.value)} /></div>
-                                            <div><label className="text-[10px] font-black uppercase text-slate-400 mb-2 block tracking-widest">Reason Label</label><input type="text" className="w-full p-3 rounded-xl border focus:ring-1 focus:ring-slate-900 outline-none font-bold" value={customReason} onChange={e => setCustomReason(e.target.value)} /></div>
-                                            <div className="col-span-2"><label className="text-[10px] font-black uppercase text-slate-400 mb-2 block tracking-widest">Notes / Incident Context</label><textarea className="w-full p-3 rounded-xl border min-h-[80px] focus:ring-1 focus:ring-slate-900 outline-none font-medium" value={logNote} onChange={e => setLogNote(e.target.value)} /></div>
-                                            <button disabled={!loggedBy.trim() || !customReason.trim()} onClick={handleLogPoint} className="col-span-2 bg-slate-900 text-white py-4 rounded-2xl font-black text-xs uppercase tracking-widest disabled:opacity-30 shadow-xl transition-all hover:bg-indigo-600">Commit Record</button>
-                                        </div>
-                                    </div>
+                                    <div className="px-8 pb-8 space-y-4"><div className="p-8 bg-slate-50 rounded-[2rem] border grid grid-cols-1 md:grid-cols-2 gap-6">
+                                        <div><label className="text-[10px] font-black uppercase text-slate-400 mb-2 block tracking-widest">Authorized By</label><input type="text" className="w-full p-3 rounded-xl border focus:ring-1 focus:ring-slate-900 outline-none font-bold" value={loggedBy} onChange={e => setLoggedBy(e.target.value)} /></div>
+                                        <div><label className="text-[10px] font-black uppercase text-slate-400 mb-2 block tracking-widest">Reason Label</label><input type="text" className="w-full p-3 rounded-xl border focus:ring-1 focus:ring-slate-900 outline-none font-bold" value={customReason} onChange={e => setCustomReason(e.target.value)} /></div>
+                                        <div className="col-span-2"><label className="text-[10px] font-black uppercase text-slate-400 mb-2 block tracking-widest">Notes / Context</label><textarea className="w-full p-3 rounded-xl border min-h-[80px] focus:ring-1 focus:ring-slate-900 outline-none font-medium" value={logNote} onChange={e => setLogNote(e.target.value)} /></div>
+                                        <button disabled={!loggedBy.trim() || !customReason.trim()} onClick={handleLogPoint} className="col-span-2 bg-slate-900 text-white py-4 rounded-2xl font-black text-xs uppercase tracking-widest disabled:opacity-30 shadow-xl transition-all hover:bg-indigo-600">Commit Record</button>
+                                    </div></div>
                                 )}
                             </div>
                         </div>
                     )}
 
+                    {/* HISTORY SIDEBAR */}
                     {viewingHistory && (
                         <div className="fixed inset-0 z-50 flex justify-end bg-slate-900/40 backdrop-blur-sm">
                             <div className="bg-white w-full max-w-xl h-full shadow-2xl flex flex-col animate-in">
                                 <div className="p-8 border-b bg-slate-50 flex justify-between items-center">
                                     <div className="flex gap-4 items-center">
                                         <div className="bg-white p-3 rounded-2xl border shadow-sm"><Icon name="User" size={32} className="text-slate-800" /></div>
-                                        <div><h2 className="text-2xl font-black uppercase tracking-tighter">{viewingHistory}</h2><div className="flex gap-2 text-[10px] font-black uppercase mt-1"><span className="text-emerald-600">{employeeStats.find(e => e.name === viewingHistory)?.pos || 0} Positive</span> <span className={`px-1.5 py-0.5 rounded ${employeeStats.find(e => e.name === viewingHistory)?.neg >= 3 ? 'bg-red-500 text-white' : 'text-red-500'}`}>{employeeStats.find(e => e.name === viewingHistory)?.neg || 0} Negative</span></div></div>
+                                        <div><h2 className="text-2xl font-black uppercase tracking-tighter leading-none">{viewingHistory}</h2><div className="flex gap-2 text-[10px] font-black uppercase mt-2"><span className="text-emerald-600">{employeeStats.find(e => e.name === viewingHistory)?.pos || 0}P</span> <span className="text-red-500">{employeeStats.find(e => e.name === viewingHistory)?.neg || 0}N</span></div></div>
                                     </div>
                                     <div className="flex gap-3 text-slate-300 items-center">
                                         <button onClick={() => handleReset(viewingHistory, 'positive')} title="Reset Positive"><Icon name="Reset" size={18} className="hover:text-emerald-500 transition-colors" /></button>
                                         <button onClick={() => handleReset(viewingHistory, 'negative')} title="Reset Negative"><Icon name="Reset" size={18} className="hover:text-red-500 transition-colors" /></button>
-                                        <button onClick={async () => { if(confirm("Remove team member?")) { const target = employees.find(e => e.name === viewingHistory); if(!target) return; await firebase.firestore().collection('artifacts').doc(currentAppId).collection('public').doc('data').collection('employees').doc(target.id).delete(); setViewingHistory(null); } }}><Icon name="Trash" size={18} className="hover:text-red-500 transition-colors" /></button>
+                                        <button onClick={async () => { if(confirm("Remove team member?")) { const target = employees.find(e => e.name === viewingHistory); if(target) { await db.collection(ROSTER_COLLECTION).doc(target.id).delete(); setViewingHistory(null); } }}}><Icon name="Trash" size={18} className="hover:text-red-500 transition-colors" /></button>
                                         <button onClick={() => setViewingHistory(null)} className="ml-2"><Icon name="X" size={24} className="hover:text-slate-900 transition-colors" /></button>
                                     </div>
                                 </div>
                                 <div className="flex-1 overflow-y-auto p-8 custom-scrollbar space-y-8">
-                                    <div>
-                                        <h3 className="text-[10px] font-black uppercase text-slate-400 tracking-widest mb-6 flex items-center gap-2"><Icon name="Chart" size={14} /> Journey Visualization</h3>
-                                        <div className="bg-slate-50 border rounded-2xl p-6 h-48 flex items-end justify-between relative overflow-hidden text-center">
-                                            <div className="absolute inset-0 p-6 flex flex-col justify-between pointer-events-none opacity-10"><div className="border-b border-slate-400 w-full" /><div className="border-b border-slate-400 w-full border-dashed" /><div className="border-b border-slate-400 w-full" /></div>
-                                            <div className="flex items-end gap-1 w-full h-full relative z-10 tabular-nums">
-                                                {(() => {
-                                                    const stats = employeeStats.find(e => e.name === viewingHistory);
-                                                    const journey = stats?.journey || [0];
-                                                    const min = Math.min(...journey, 0);
-                                                    const max = Math.max(...journey, 5);
-                                                    return journey.map((val, idx) => {
-                                                        const height = ((val - min) / (Math.max(max - min, 1))) * 100;
-                                                        return <div key={idx} className={`flex-1 rounded-t-sm transition-all duration-500 ${val >= 0 ? 'bg-emerald-400/60' : 'bg-red-400/60'}`} style={{ height: `${Math.max(height, 5)}%` }} />;
-                                                    });
-                                                })()}
-                                            </div>
+                                    {logs.filter(l => l.employeeName === viewingHistory).length === 0 ? <p className="text-slate-300 italic text-center py-20">No history found.</p> : (
+                                        <div className="space-y-3">
+                                            {logs.filter(l => l.employeeName === viewingHistory).map(l => (
+                                                <div key={l.id} className="p-4 border rounded-2xl flex justify-between items-center bg-white shadow-sm transition-all hover:border-indigo-100">
+                                                    <div><p className="text-sm font-bold text-slate-700">{l.label}</p><p className="text-[10px] uppercase text-slate-400 font-bold tracking-widest">{l.date} • By: {l.loggedBy}</p></div>
+                                                    <span className={`font-black text-sm px-2 py-1 rounded-lg ${l.value > 0 ? 'bg-emerald-50 text-emerald-600' : 'bg-red-50 text-red-600'}`}>{l.value > 0 ? '+1' : '-1'}</span>
+                                                </div>
+                                            ))}
                                         </div>
-                                    </div>
-                                    <div className="space-y-4">
-                                        <h3 className="text-[10px] font-black uppercase text-slate-400 tracking-widest flex items-center gap-2"><Icon name="History" size={14} /> Historical Log</h3>
-                                        {logs.filter(l => l.employeeName === viewingHistory).length === 0 ? <p className="text-slate-300 italic text-center py-10">No cloud records found.</p> : logs.filter(l => l.employeeName === viewingHistory).map(log => (
-                                            <div key={log.id} className="bg-white p-4 border rounded-xl flex justify-between items-center shadow-sm transition-all hover:border-indigo-100">
-                                                <div><p className="text-sm font-bold text-slate-700">{log.label}</p><p className="text-[10px] uppercase text-slate-400 font-bold tracking-widest">{log.date} • By: {log.loggedBy}</p></div>
-                                                <span className={`font-black text-sm px-2 py-1 rounded-lg ${log.value > 0 ? 'bg-emerald-50 text-emerald-600' : 'bg-red-50 text-red-600'}`}>{log.value > 0 ? '+1' : '-1'}</span>
-                                            </div>
-                                        ))}
-                                    </div>
+                                    )}
                                 </div>
-                                <div className="p-8 border-t bg-slate-50"><button onClick={() => { setSelectedEmployee(viewingHistory); setViewingHistory(null); }} className="w-full bg-slate-900 text-white font-black text-xs py-4 rounded-2xl uppercase tracking-widest shadow-xl flex items-center justify-center gap-2 hover:bg-indigo-600 transition-all"><Icon name="Plus" size={16} /> Add Performance Record</button></div>
+                                <div className="p-8 border-t bg-slate-50"><button onClick={() => { setSelectedEmployee(viewingHistory); setViewingHistory(null); }} className="w-full bg-slate-900 text-white font-black text-xs py-5 rounded-3xl uppercase tracking-widest shadow-xl flex items-center justify-center gap-2 hover:bg-indigo-600 transition-all"><Icon name="Plus" size={16} /> New Entry</button></div>
                             </div>
                         </div>
                     )}
 
+                    {/* ADD STAFF MODAL */}
                     {showAddModal && (
                         <div className="fixed inset-0 z-50 flex items-center justify-center p-6 bg-slate-900/40 backdrop-blur-sm">
-                            <div className="bg-white p-8 rounded-[2rem] shadow-2xl w-full max-w-md animate-in">
-                                <h2 className="text-xl font-black uppercase mb-4 tracking-tighter">Add Staff Member</h2>
-                                <input autoFocus type="text" className="w-full p-4 border rounded-xl mb-6 font-bold outline-none focus:ring-2 focus:ring-slate-900 transition-all" placeholder="Full Name" value={newEmployeeName} onChange={e => setNewEmployeeName(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleAddEmployee()} />
-                                <div className="flex gap-2"><button onClick={() => setShowAddModal(false)} className="flex-1 p-4 rounded-xl border font-bold text-xs uppercase tracking-widest transition-colors hover:bg-slate-50">Cancel</button><button onClick={handleAddEmployee} className="flex-1 bg-slate-900 text-white py-4 rounded-xl font-black text-xs uppercase shadow-lg transition-all hover:bg-indigo-600">Confirm Addition</button></div>
+                            <div className="bg-white p-10 rounded-[3rem] shadow-2xl w-full max-w-md animate-in">
+                                <h2 className="text-xl font-black uppercase mb-6 tracking-tighter text-center">Add Staff Member</h2>
+                                <input autoFocus type="text" className="w-full p-4 border rounded-2xl mb-8 font-bold outline-none focus:ring-2 focus:ring-slate-900 transition-all text-center uppercase" placeholder="Full Name" value={newEmployeeName} onChange={e => setNewEmployeeName(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleAddEmployee()} />
+                                <div className="flex gap-3"><button onClick={() => setShowAddModal(false)} className="flex-1 p-4 rounded-2xl border font-bold text-xs uppercase tracking-widest hover:bg-slate-50">Cancel</button><button onClick={handleAddEmployee} className="flex-1 bg-slate-900 text-white py-4 rounded-2xl font-black text-xs uppercase shadow-lg transition-all hover:bg-indigo-600">Confirm</button></div>
                             </div>
                         </div>
                     )}
