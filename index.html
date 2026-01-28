@@ -75,6 +75,31 @@
             "Nadya Weitz", "Reyner Nefdt", "Ryan Bosma"
         ];
 
+        const POINT_MENU = {
+            positive: [
+                { label: "Initiative & Proactivity", value: 1 },
+                { label: "Accountability / Follow-up", value: 1 },
+                { label: "Task Completion / Closing", value: 1 },
+                { label: "Soft Skills & Admin", value: 1 },
+                { label: "Knowledge Sharing", value: 1 },
+                { label: "Perfect Time-Tracking", value: 1 },
+                { label: "Peer-to-Peer Kudos", value: 1 },
+                { label: "Assisting Teammate", value: 1 },
+                { label: "New SOP Improvement", value: 1 },
+                { label: "High Performance Results", value: 1 },
+                { label: "Client Praise", value: 1 },
+            ],
+            negative: [
+                { label: "Governance Protocol Breach", value: -1 },
+                { label: "Minor Lateness", value: -1 },
+                { label: "Spelling/Grammar Error", value: -1 },
+                { label: "Missed Deadline", value: -1 },
+                { label: "Client-Facing Deadline Miss", value: -1 },
+                { label: "Critical Agency Error", value: -1 },
+                { label: "Unprofessional Conduct", value: -1 },
+            ]
+        };
+
         // --- 3. UI COMPONENTS ---
         const Icon = ({ name, size = 20, className = "" }) => {
             const icons = {
@@ -113,7 +138,7 @@
                 const y = height - ((val - min) / range) * height;
                 return `${x},${y}`;
             }).join(' ');
-            const isUptrend = safeData[safeData.length - 1] >= safeData[0];
+            const isUptrend = safeData[safeData.length - 1] >= (safeData[0] || 0);
             return (
                 <svg width={width} height={height} className="overflow-visible">
                     <polyline fill="none" stroke={isUptrend ? "#10b981" : "#ef4444"} strokeWidth="2" strokeLinejoin="round" points={points} />
@@ -146,12 +171,21 @@
             // Handle Authentication
             useEffect(() => {
                 if (!auth) {
-                    setError("Firebase Authentication initialization failed.");
+                    setError("Firebase Authentication initialization failed. Check your configuration.");
                     return;
                 }
                 const unsubscribe = auth.onAuthStateChanged((u) => {
-                    if (u) setUser(u);
-                    else auth.signInAnonymously().catch(e => setError("Anonymous Login Denied: " + e.message));
+                    if (u) {
+                        setUser(u);
+                    } else {
+                        auth.signInAnonymously().catch(e => {
+                            if (e.message.includes("CONFIGURATION_NOT_FOUND")) {
+                                setError("Auth Error: Anonymous Authentication is DISABLED in your Firebase Console. Go to Authentication > Sign-in method and enable 'Anonymous'.");
+                            } else {
+                                setError("Anonymous Login Denied: " + e.message);
+                            }
+                        });
+                    }
                 });
                 return () => unsubscribe();
             }, []);
@@ -169,7 +203,7 @@
                     setLoading(false);
                 }, err => {
                     console.error("Firestore Error:", err);
-                    setError("Database Access Error: Ensure Firestore rules allow read/write in Test Mode.");
+                    setError("Database Access Error: Ensure your Firestore Rules are set to 'Test Mode' or allow public access.");
                 });
 
                 const unsubLog = db.collection(LOGS_COLLECTION).orderBy('timestamp', 'desc').onSnapshot(snap => {
@@ -230,9 +264,11 @@
                 <div className="h-screen flex items-center justify-center p-6 bg-red-50 text-center">
                     <div className="max-w-md bg-white p-10 rounded-3xl shadow-xl border border-red-200 animate-in">
                         <Icon name="AlertTriangle" className="text-red-500 mx-auto mb-4" size={48} />
-                        <h2 className="text-xl font-black text-slate-900 mb-2 uppercase">System Error</h2>
-                        <p className="text-sm text-slate-500 mb-6">{error}</p>
-                        <button onClick={() => window.location.reload()} className="bg-slate-900 text-white px-8 py-3 rounded-xl font-bold uppercase text-xs">Retry Connection</button>
+                        <h2 className="text-xl font-black text-slate-900 mb-2 uppercase tracking-tighter">System Error</h2>
+                        <div className="text-sm text-slate-500 mb-6 bg-slate-50 p-4 rounded-xl text-left border font-medium">
+                            {error}
+                        </div>
+                        <button onClick={() => window.location.reload()} className="w-full bg-slate-900 text-white px-8 py-3 rounded-xl font-bold uppercase text-xs tracking-widest shadow-lg">Retry Connection</button>
                     </div>
                 </div>
             );
@@ -266,7 +302,7 @@
                         <div className="flex items-center gap-3">
                             <div className="bg-slate-900 p-2 rounded-lg text-white"><Icon name="Dashboard" /></div>
                             <div>
-                                <h1 className="text-lg font-black uppercase tracking-tighter leading-none">Office Console</h1>
+                                <h1 className="text-lg font-black uppercase tracking-tighter leading-none text-slate-900">Office Console</h1>
                                 <p className="text-[10px] font-bold uppercase text-slate-400 mt-1 flex items-center gap-1"><Icon name="Cloud" size={10} className="text-indigo-500" /> Cloud Sync Active</p>
                             </div>
                         </div>
@@ -280,8 +316,8 @@
                         {activeTab === 'dashboard' ? (
                             <div className="max-w-6xl mx-auto space-y-8 animate-in">
                                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                                    <div className="bg-white p-6 rounded-2xl border shadow-sm"><p className="text-[9px] font-black uppercase text-slate-400 mb-2">Global Positives</p><div className="text-3xl font-black text-emerald-600">{logs.filter(l => l.value > 0).length}</div></div>
-                                    <div className="bg-white p-6 rounded-2xl border shadow-sm"><p className="text-[9px] font-black uppercase text-slate-400 mb-2">Global Negatives</p><div className="text-3xl font-black text-red-500">{logs.filter(l => l.value < 0).length}</div></div>
+                                    <div className="bg-white p-6 rounded-2xl border shadow-sm"><p className="text-[9px] font-black uppercase text-slate-400 mb-2">Total Positives</p><div className="text-3xl font-black text-emerald-600">{logs.filter(l => l.value > 0).length}</div></div>
+                                    <div className="bg-white p-6 rounded-2xl border shadow-sm"><p className="text-[9px] font-black uppercase text-slate-400 mb-2">Total Negatives</p><div className="text-3xl font-black text-red-500">{logs.filter(l => l.value < 0).length}</div></div>
                                     <div className="bg-white p-6 rounded-2xl border shadow-sm"><p className="text-[9px] font-black uppercase text-red-500 mb-2">At-Risk Staff</p><div className="text-3xl font-black text-red-500">{employeeStats.filter(e => e.neg >= 3).length}</div></div>
                                 </div>
                                 <div className="flex gap-4">
@@ -338,9 +374,9 @@
                                 </div>
                                 {customType && (
                                     <div className="px-8 pb-8 space-y-4 animate-in"><div className="p-8 bg-slate-50 rounded-[2rem] border grid grid-cols-1 md:grid-cols-2 gap-6">
-                                        <div><label className="text-[10px] font-black uppercase text-slate-400 mb-2 block tracking-widest">Authorized By</label><input type="text" className="w-full p-3 rounded-xl border focus:ring-2 focus:ring-slate-900 outline-none font-bold" value={loggedBy} onChange={e => setLoggedBy(e.target.value)} /></div>
-                                        <div><label className="text-[10px] font-black uppercase text-slate-400 mb-2 block tracking-widest">Reason Label</label><input type="text" className="w-full p-3 rounded-xl border focus:ring-2 focus:ring-slate-900 outline-none font-bold" value={customReason} onChange={e => setCustomReason(e.target.value)} /></div>
-                                        <div className="col-span-2"><label className="text-[10px] font-black uppercase text-slate-400 mb-2 block tracking-widest">Notes / Context</label><textarea className="w-full p-3 rounded-xl border min-h-[80px] focus:ring-2 focus:ring-slate-900 outline-none font-medium" value={logNote} onChange={e => setLogNote(e.target.value)} /></div>
+                                        <div><label className="text-[10px] font-black uppercase text-slate-400 mb-2 block tracking-widest font-bold">Authorized By</label><input type="text" className="w-full p-3 rounded-xl border focus:ring-2 focus:ring-indigo-500 outline-none font-bold" value={loggedBy} onChange={e => setLoggedBy(e.target.value)} /></div>
+                                        <div><label className="text-[10px] font-black uppercase text-slate-400 mb-2 block tracking-widest font-bold">Reason Label</label><input type="text" className="w-full p-3 rounded-xl border focus:ring-2 focus:ring-indigo-500 outline-none font-bold" value={customReason} onChange={e => setCustomReason(e.target.value)} /></div>
+                                        <div className="col-span-2"><label className="text-[10px] font-black uppercase text-slate-400 mb-2 block tracking-widest font-bold">Notes / Context</label><textarea className="w-full p-3 rounded-xl border min-h-[80px] focus:ring-2 focus:ring-indigo-500 outline-none font-medium" value={logNote} onChange={e => setLogNote(e.target.value)} /></div>
                                         <button disabled={!loggedBy.trim() || !customReason.trim()} onClick={handleLogPoint} className="col-span-2 bg-slate-900 text-white py-4 rounded-2xl font-black text-xs uppercase tracking-widest disabled:opacity-30 shadow-xl transition-all hover:bg-indigo-600">Commit Record</button>
                                     </div></div>
                                 )}
