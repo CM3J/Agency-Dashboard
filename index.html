@@ -27,12 +27,12 @@
     <div id="root"></div>
 
     <script type="text/babel">
-        const { useState, useMemo, useEffect } = React;
+        const { useState, useMemo, useEffect, Fragment } = React;
 
         // --- AUTH & DATABASE CONFIG ---
         const AGENCY_PASSWORD = "AgencyAccess2026";
         
-        // Environment Handling
+        // Environment Handling - Safe parsing
         let firebaseConfig = {};
         try {
             firebaseConfig = typeof __firebase_config !== 'undefined' && __firebase_config 
@@ -42,12 +42,14 @@
         
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'agency-stats-v1';
 
-        // Initialize Firebase
+        // Initialize Firebase safely
         if (!firebase.apps.length && firebaseConfig.apiKey) {
             firebase.initializeApp(firebaseConfig);
         }
-        const auth = firebase.auth();
-        const db = firebase.firestore();
+
+        // Access services only if app exists to prevent global script crash
+        const getAuth = () => firebase.apps.length ? firebase.auth() : null;
+        const getDb = () => firebase.apps.length ? firebase.firestore() : null;
 
         const INITIAL_ROSTER = [
             "Aaron Teng", "Anna Larmuth", "Conner Foxcroft",
@@ -81,23 +83,22 @@
             ]
         };
 
-        // Internal Icon Set (SVG) - Replaces Lucide-React to avoid dependency breaks
         const Icon = ({ name, size = 20, className = "" }) => {
             const icons = {
                 Plus: <path d="M12 5v14M5 12h14" />,
                 TrendingUp: <path d="m22 7-8.5 8.5L9 11l-7 7M16 7h6v6" />,
                 TrendingDown: <path d="m22 17-8.5-8.5L9 13l-7-7M16 17h6v-6" />,
-                Alert: <React.Fragment><circle cx="12" cy="12" r="10" /><line x1="12" x2="12" y1="8" y2="12" /><line x1="12" x2="12.01" y1="16" y2="16" /></React.Fragment>,
-                Award: <React.Fragment><circle cx="12" cy="8" r="7" /><polyline points="8.21 13.89 7 23 12 20 17 23 15.79 13.88" /></React.Fragment>,
-                Dashboard: <React.Fragment><rect width="7" height="9" x="3" y="3" rx="1" /><rect width="7" height="5" x="14" y="3" rx="1" /><rect width="7" height="9" x="14" y="12" rx="1" /><rect width="7" height="5" x="3" y="16" rx="1" /></React.Fragment>,
-                Search: <React.Fragment><circle cx="11" cy="11" r="8" /><path d="m21 21-4.3-4.3" /></React.Fragment>,
+                Alert: <Fragment><circle cx="12" cy="12" r="10" /><line x1="12" x2="12" y1="8" y2="12" /><line x1="12" x2="12.01" y1="16" y2="16" /></Fragment>,
+                Award: <Fragment><circle cx="12" cy="8" r="7" /><polyline points="8.21 13.89 7 23 12 20 17 23 15.79 13.88" /></Fragment>,
+                Dashboard: <Fragment><rect width="7" height="9" x="3" y="3" rx="1" /><rect width="7" height="5" x="14" y="3" rx="1" /><rect width="7" height="9" x="14" y="12" rx="1" /><rect width="7" height="5" x="3" y="16" rx="1" /></Fragment>,
+                Search: <Fragment><circle cx="11" cy="11" r="8" /><path d="m21 21-4.3-4.3" /></Fragment>,
                 X: <path d="M18 6 6 18M6 6l12 12" />,
                 Chevron: <path d="m9 18 6-6-6-6" />,
-                User: <React.Fragment><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2" /><circle cx="12" cy="7" r="4" /></React.Fragment>,
+                User: <Fragment><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2" /><circle cx="12" cy="7" r="4" /></Fragment>,
                 Chart: <path d="M3 3v18h18M18 17V9M13 17V5M8 17v-3" />,
-                UserPlus: <React.Fragment><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><line x1="19" x2="19" y1="8" y2="14" /><line x1="16" x2="22" y1="11" y2="11" /></React.Fragment>,
+                UserPlus: <Fragment><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><line x1="19" x2="19" y1="8" y2="14" /><line x1="16" x2="22" y1="11" y2="11" /></Fragment>,
                 Trash: <path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M10 11v6M14 11v6" />,
-                Lock: <React.Fragment><rect width="18" height="11" x="3" y="11" rx="2" ry="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" /></React.Fragment>,
+                Lock: <Fragment><rect width="18" height="11" x="3" y="11" rx="2" ry="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" /></Fragment>,
                 Cloud: <path d="M17.5 19c2.5 0 4.5-2 4.5-4.5 0-2.3-1.8-4.3-4-4.5a7 7 0 1 0-13.5 1.5c-2.2.2-4 2.2-4 4.5C.5 17 2.5 19 5 19h12.5z" />,
                 Reset: <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8M3 3v5h5" />,
                 Sticky: <path d="M12 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7M14 3l7 7M14 3v7h7" />
@@ -149,8 +150,16 @@
             const [customReason, setCustomReason] = useState("");
             const [customType, setCustomType] = useState(null);
 
-            // Auth Loop (Rule 3)
+            const auth = getAuth();
+            const db = getDb();
+
+            // Auth Loop
             useEffect(() => {
+                if (!auth) {
+                    // Fail gracefully if no Firebase app
+                    setLoading(false);
+                    return;
+                }
                 const init = async () => {
                     try {
                         if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
@@ -164,9 +173,9 @@
                 return auth.onAuthStateChanged(setUser);
             }, []);
 
-            // Data Sync (Rule 1)
+            // Data Sync
             useEffect(() => {
-                if (!user) return;
+                if (!user || !db) return;
                 const baseRef = db.collection('artifacts').doc(appId).collection('public').doc('data');
                 
                 const unsubEmp = baseRef.collection('employees').onSnapshot(snap => {
@@ -211,7 +220,7 @@
             }, [logs, employees]);
 
             const handleLogPoint = async () => {
-                if (!loggedBy.trim() || !customReason.trim()) return;
+                if (!loggedBy.trim() || !customReason.trim() || !db) return;
                 await db.collection('artifacts').doc(appId).collection('public').doc('data').collection('logs').add({
                     timestamp: Date.now(),
                     date: new Date().toLocaleDateString(),
@@ -225,7 +234,7 @@
             };
 
             const handleReset = async (name, type) => {
-                if (!confirm(`Reset all ${type} points for ${name}?`)) return;
+                if (!db || !confirm(`Reset all ${type} points for ${name}?`)) return;
                 const snap = await db.collection('artifacts').doc(appId).collection('public').doc('data').collection('logs').where('employeeName', '==', name).get();
                 const batch = db.batch();
                 snap.docs.forEach(doc => {
@@ -236,7 +245,7 @@
             };
 
             const handleAddEmployee = async () => {
-                if (!newEmployeeName.trim()) return;
+                if (!newEmployeeName.trim() || !db) return;
                 await db.collection('artifacts').doc(appId).collection('public').doc('data').collection('employees').add({ name: newEmployeeName.trim() });
                 setNewEmployeeName(""); setShowAddModal(false);
             };
@@ -273,7 +282,7 @@
                             <div className="bg-slate-900 p-2 rounded-lg text-white"><Icon name="Dashboard" size={24} /></div>
                             <div>
                                 <h1 className="text-lg font-bold uppercase tracking-tighter leading-none">Office Console</h1>
-                                <p className="text-[10px] text-slate-400 font-black mt-1 uppercase tracking-widest flex items-center gap-1"><Icon name="Cloud" size={10} className="text-indigo-500" /> Cloud Storage Active</p>
+                                <p className="text-[10px] text-slate-400 font-black mt-1 uppercase tracking-widest flex items-center gap-1"><Icon name="Cloud" size={10} className="text-indigo-500" /> {auth ? 'Cloud Storage Active' : 'Offline Mode'}</p>
                             </div>
                         </div>
                         <nav className="flex bg-slate-100 p-1 rounded-lg border">
@@ -288,7 +297,7 @@
                                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                                     <div className="bg-white p-6 rounded-2xl border shadow-sm"><p className="text-[9px] font-black uppercase text-slate-400 mb-2 tracking-widest">Global Positives</p><div className="text-3xl font-black text-emerald-600 tabular-nums">{logs.filter(l => l.value > 0).length}</div></div>
                                     <div className="bg-white p-6 rounded-2xl border shadow-sm"><p className="text-[9px] font-black uppercase text-slate-400 mb-2 tracking-widest">Global Negatives</p><div className="text-3xl font-black text-red-500 tabular-nums">{logs.filter(l => l.value < 0).length}</div></div>
-                                    <div className="bg-white p-6 rounded-2xl border shadow-sm"><p className="text-[9px] font-black uppercase text-red-500 mb-2 tracking-widest">At-Risk Staff</p><div className="text-3xl font-black text-red-500 tabular-nums">{employeeStats.filter(e => e.negCount >= 3).length}</div></div>
+                                    <div className="bg-white p-6 rounded-2xl border shadow-sm"><p className="text-[9px] font-black uppercase text-red-500 mb-2 tracking-widest">At-Risk Staff</p><div className="text-3xl font-black text-red-500 tabular-nums">{employeeStats.filter(e => e.neg >= 3).length}</div></div>
                                 </div>
                                 <div className="flex gap-4">
                                     <div className="flex-1 flex items-center bg-white px-4 rounded-xl border shadow-sm"><Icon name="Search" size={18} className="text-slate-400 mr-2" /><input type="text" placeholder="Search staff..." className="w-full bg-transparent border-none py-3 text-sm focus:ring-0" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} /></div>
@@ -298,10 +307,10 @@
                                     <table className="w-full text-left border-collapse min-w-[700px]">
                                         <thead><tr className="bg-slate-50 border-b text-[10px] font-black text-slate-400 uppercase tracking-widest"><th className="px-6 py-4">Employee</th><th className="px-6 py-4">Status / Score</th><th className="px-6 py-4">Trend</th><th className="px-6 py-4">Status</th><th className="px-6 py-4">Required Action</th><th className="px-6 py-4"></th></tr></thead>
                                         <tbody className="divide-y">
-                                            {filtered.map(emp => (
+                                            {filtered.length === 0 ? <tr><td colSpan="6" className="p-10 text-center text-slate-400 italic">No records found.</td></tr> : filtered.map(emp => (
                                                 <tr key={emp.name} className="hover:bg-slate-50 group">
                                                     <td className="px-6 py-4 font-bold text-slate-700 underline cursor-pointer hover:text-indigo-600" onClick={() => setViewingHistory(emp.name)}>{emp.name}</td>
-                                                    <td className="px-6 py-4 flex gap-2"><span className="px-2 py-1 rounded bg-emerald-50 text-emerald-600 font-black text-[10px]">{emp.posCount}P</span><span className={`px-2 py-1 rounded font-black text-[10px] ${emp.negCount >= 3 ? 'bg-red-500 text-white shadow-sm' : 'bg-red-50 text-red-500'}`}>{emp.negCount}N</span></td>
+                                                    <td className="px-6 py-4 flex gap-2"><span className="px-2 py-1 rounded bg-emerald-50 text-emerald-600 font-black text-[10px]">{emp.posCount}P</span><span className={`px-2 py-1 rounded font-black text-[10px] ${emp.neg >= 3 ? 'bg-red-500 text-white shadow-sm' : 'bg-red-50 text-red-500'}`}>{emp.negCount}N</span></td>
                                                     <td className="px-6 py-4"><Sparkline data={emp.journey} /></td>
                                                     <td className="px-6 py-4 text-[10px] font-black uppercase"><span className={`${emp.bg} ${emp.color} px-2 py-1 rounded`}>{emp.status}</span></td>
                                                     <td className="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-tight">{emp.action}</td>
@@ -315,7 +324,7 @@
                         ) : (
                             <div className="max-w-4xl mx-auto space-y-6">
                                 <div className="flex justify-between items-end mb-8"><h2 className="text-2xl font-black text-slate-800 uppercase tracking-tighter">Activity Ledger</h2><button onClick={async () => { if(confirm("Clear ALL logs?")) { const snap = await db.collection('artifacts').doc(appId).collection('public').doc('data').collection('logs').get(); const b = db.batch(); snap.docs.forEach(d => b.delete(d.ref)); await b.commit(); }}} className="text-[10px] text-red-500 font-bold uppercase hover:underline">Erase Ledger</button></div>
-                                {logs.map(log => (
+                                {logs.length === 0 ? <p className="p-10 text-center text-slate-400 italic bg-white rounded-xl border border-dashed">No log entries found.</p> : logs.map(log => (
                                     <div key={log.id} className="bg-white p-5 rounded-2xl border shadow-sm flex flex-col gap-3 group transition-all hover:border-slate-300">
                                         <div className="flex justify-between items-start">
                                             <div className="flex gap-4 items-center">
@@ -339,14 +348,14 @@
 
                     {selectedEmployee && (
                         <div className="fixed inset-0 z-50 flex items-center justify-center p-6 bg-slate-900/60 backdrop-blur-sm overflow-y-auto">
-                            <div className="bg-white w-full max-w-4xl rounded-[2.5rem] shadow-2xl my-auto overflow-hidden">
+                            <div className="bg-white w-full max-w-4xl rounded-[2.5rem] shadow-2xl my-auto overflow-hidden animate-in">
                                 <div className="bg-slate-900 p-8 text-white flex justify-between items-center"><div><h2 className="text-2xl font-black uppercase tracking-tighter leading-none">Submit Record</h2><p className="text-slate-400 text-sm mt-1">Employee: {selectedEmployee}</p></div><button onClick={() => setSelectedEmployee(null)}><Icon name="X" size={32} /></button></div>
                                 <div className="p-8 grid grid-cols-1 md:grid-cols-2 gap-8">
                                     <div className="space-y-4"><h3 className="text-[10px] font-black text-emerald-600 uppercase tracking-widest">Positive Factors</h3><div className="grid grid-cols-1 gap-2">{POINT_MENU.positive.map(i => <button key={i.label} onClick={() => { setCustomReason(i.label); setCustomType('positive'); }} className={`w-full text-left p-4 rounded-xl border text-sm font-bold transition-all ${customReason === i.label && customType === 'positive' ? 'bg-emerald-600 text-white border-emerald-600 shadow-md' : 'border-emerald-100 bg-emerald-50/30 hover:bg-emerald-50'}`}>{i.label}</button>)}<button onClick={() => { setCustomType('positive'); setCustomReason(""); }} className={`w-full p-4 rounded-xl border text-sm font-bold ${customType === 'positive' && !POINT_MENU.positive.some(i => i.label === customReason) ? 'bg-emerald-600 text-white' : 'border-emerald-100 bg-emerald-50/30'}`}>Other Category...</button></div></div>
                                     <div className="space-y-4"><h3 className="text-[10px] font-black text-red-600 uppercase tracking-widest">Performance Deficits</h3><div className="grid grid-cols-1 gap-2">{POINT_MENU.negative.map(i => <button key={i.label} onClick={() => { setCustomReason(i.label); setCustomType('negative'); }} className={`w-full text-left p-4 rounded-xl border text-sm font-bold transition-all ${customReason === i.label && customType === 'negative' ? 'bg-red-600 text-white border-red-600 shadow-md' : 'border-red-100 bg-red-50/30 hover:bg-red-50'}`}>{i.label}</button>)}<button onClick={() => { setCustomType('negative'); setCustomReason(""); }} className={`w-full p-4 rounded-xl border text-sm font-bold ${customType === 'negative' && !POINT_MENU.negative.some(i => i.label === customReason) ? 'bg-red-600 text-white' : 'border-red-100 bg-red-50/30'}`}>Other Category...</button></div></div>
                                 </div>
                                 {customType && (
-                                    <div className="px-8 pb-8 space-y-4">
+                                    <div className="px-8 pb-8 space-y-4 animate-in">
                                         <div className="p-8 bg-slate-50 rounded-[2rem] border grid grid-cols-1 md:grid-cols-2 gap-6">
                                             <div><label className="text-[10px] font-black uppercase text-slate-400 mb-2 block tracking-widest">Authorized By</label><input type="text" className="w-full p-3 rounded-xl border focus:ring-1 focus:ring-slate-900 outline-none font-bold" value={loggedBy} onChange={e => setLoggedBy(e.target.value)} /></div>
                                             <div><label className="text-[10px] font-black uppercase text-slate-400 mb-2 block tracking-widest">Reason Label</label><input type="text" className="w-full p-3 rounded-xl border focus:ring-1 focus:ring-slate-900 outline-none font-bold" value={customReason} onChange={e => setCustomReason(e.target.value)} /></div>
@@ -370,7 +379,7 @@
                                     <div className="flex gap-3 text-slate-300 items-center">
                                         <button onClick={() => handleReset(viewingHistory, 'positive')} title="Reset Positive"><Icon name="Reset" size={18} className="hover:text-emerald-500 transition-colors" /></button>
                                         <button onClick={() => handleReset(viewingHistory, 'negative')} title="Reset Negative"><Icon name="Reset" size={18} className="hover:text-red-500 transition-colors" /></button>
-                                        <button onClick={async () => { if(confirm("Remove team member?")) { const id = employees.find(e => e.name === viewingHistory).id; await db.collection('artifacts').doc(appId).collection('public').doc('data').collection('employees').doc(id).delete(); setViewingHistory(null); } }}><Icon name="Trash" size={18} className="hover:text-red-500 transition-colors" /></button>
+                                        <button onClick={async () => { if(confirm("Remove team member?")) { const target = employees.find(e => e.name === viewingHistory); if(!target) return; await db.collection('artifacts').doc(appId).collection('public').doc('data').collection('employees').doc(target.id).delete(); setViewingHistory(null); } }}><Icon name="Trash" size={18} className="hover:text-red-500 transition-colors" /></button>
                                         <button onClick={() => setViewingHistory(null)} className="ml-2"><Icon name="X" size={24} className="hover:text-slate-900 transition-colors" /></button>
                                     </div>
                                 </div>
@@ -380,13 +389,16 @@
                                         <div className="bg-slate-50 border rounded-2xl p-6 h-48 flex items-end justify-between relative overflow-hidden">
                                             <div className="absolute inset-0 p-6 flex flex-col justify-between pointer-events-none opacity-10"><div className="border-b border-slate-400 w-full" /><div className="border-b border-slate-400 w-full border-dashed" /><div className="border-b border-slate-400 w-full" /></div>
                                             <div className="flex items-end gap-1 w-full h-full relative z-10 tabular-nums">
-                                                {(employeeStats.find(e => e.name === viewingHistory)?.journey || [0]).map((val, idx) => {
+                                                {(() => {
                                                     const stats = employeeStats.find(e => e.name === viewingHistory);
-                                                    const min = Math.min(...(stats?.journey || [0]), 0);
-                                                    const max = Math.max(...(stats?.journey || [5]), 5);
-                                                    const height = ((val - min) / (max - min || 1)) * 100;
-                                                    return <div key={idx} className={`flex-1 rounded-t-sm transition-all duration-500 ${val >= 0 ? 'bg-emerald-400/60' : 'bg-red-400/60'}`} style={{ height: `${Math.max(height, 5)}%` }} />;
-                                                })}
+                                                    const journey = stats?.journey || [0];
+                                                    const min = Math.min(...journey, 0);
+                                                    const max = Math.max(...journey, 5);
+                                                    return journey.map((val, idx) => {
+                                                        const height = ((val - min) / (max - min || 1)) * 100;
+                                                        return <div key={idx} className={`flex-1 rounded-t-sm transition-all duration-500 ${val >= 0 ? 'bg-emerald-400/60' : 'bg-red-400/60'}`} style={{ height: `${Math.max(height, 5)}%` }} />;
+                                                    });
+                                                })()}
                                             </div>
                                         </div>
                                     </div>
