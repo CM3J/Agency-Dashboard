@@ -21,24 +21,22 @@
         .custom-scrollbar::-webkit-scrollbar { width: 5px; }
         .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
         .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
-        .spin { animation: spin 1s linear infinite; }
-        @keyframes spin { to { transform: rotate(360deg); } }
     </style>
 </head>
 <body>
     <div id="root">
-        <!-- Persistent Fallback UI -->
+        <!-- Static Loading Fallback -->
         <div style="height: 100vh; display: flex; align-items: center; justify-content: center; text-align: center; color: #64748b;">
             <div>
                 <div style="width: 40px; height: 40px; border: 4px solid #e2e8f0; border-top-color: #0f172a; border-radius: 50%; animation: spin 1s linear infinite; margin: 0 auto 20px;"></div>
-                <p style="font-weight: 900; letter-spacing: -0.025em; font-size: 1.5rem; color: #0f172a;">LOADING CONSOLE</p>
-                <p id="error-check" style="font-size: 0.75rem; margin-top: 10px; opacity: 0.5;">If this persists, check browser console for errors.</p>
+                <p style="font-weight: 900; letter-spacing: -0.025em; font-size: 1.5rem; color: #0f172a;">BOOTING CONSOLE</p>
+                <style>@keyframes spin { to { transform: rotate(360deg); } }</style>
             </div>
         </div>
     </div>
 
     <script type="text/babel">
-        const { useState, useMemo, useEffect, Fragment, useRef } = React;
+        const { useState, useMemo, useEffect, Fragment } = React;
 
         // --- 1. CONFIGURATION ---
         const firebaseConfig = {
@@ -86,7 +84,7 @@
             ]
         };
 
-        // --- 2. RESILIENT ICON COMPONENT ---
+        // --- 2. UI COMPONENTS ---
         const Icon = ({ name, size = 20, className = "" }) => {
             const icons = {
                 Lock: <Fragment><rect width="18" height="11" x="3" y="11" rx="2" ry="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" /></Fragment>,
@@ -104,7 +102,6 @@
                 AlertTriangle: <Fragment><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z" /><line x1="12" x2="12" y1="9" y2="13" /><line x1="12" x2="12.01" y1="17" y2="17" /></Fragment>,
                 User: <Fragment><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2" /><circle cx="12" cy="7" r="4" /></Fragment>,
                 Sticky: <path d="M12 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7M14 3l7 7M14 3v7h7" />,
-                Sparkles: <path d="m12 3 1.912 5.885L20 10.8l-5.885 1.912L12 18.6l-1.912-5.885L4.2 10.8l6.088-1.915L12 3Z" />
             };
             return (
                 <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
@@ -132,8 +129,9 @@
             );
         };
 
-        // --- 3. MAIN APP ---
+        // --- 4. MAIN APP ---
         function App() {
+            // Check session storage for existing authentication
             const [authenticated, setAuthenticated] = useState(() => sessionStorage.getItem('agency_authenticated') === 'true');
             const [passInput, setPassInput] = useState("");
             const [passError, setPassError] = useState(false);
@@ -148,61 +146,61 @@
             const [showAddModal, setShowAddModal] = useState(false);
             const [newEmployeeName, setNewEmployeeName] = useState("");
             const [error, setError] = useState(null);
-            
-            // Initialization Lock to prevent double-seeding
-            const isInitializing = useRef(false);
 
             const [loggedBy, setLoggedBy] = useState("");
             const [logNote, setLogNote] = useState("");
             const [customReason, setCustomReason] = useState("");
             const [customType, setCustomType] = useState(null);
 
-            // Handle Authentication
+            // Handle Authentication & Global Firebase Connect
             useEffect(() => {
-                const unsubscribe = firebase.auth().onAuthStateChanged((u) => {
-                    if (u) setUser(u);
-                    else firebase.auth().signInAnonymously().catch(e => {
-                        if (e.code === "auth/operation-not-allowed") {
-                            setError("Auth Error: Enable 'Anonymous' in Firebase Console.");
+                try {
+                    if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
+                    const authInstance = firebase.auth();
+                    const unsubscribe = authInstance.onAuthStateChanged((u) => {
+                        if (u) {
+                            setUser(u);
                         } else {
-                            setError("Auth Denied: " + e.message);
+                            authInstance.signInAnonymously().catch(e => {
+                                if (e.code === "auth/operation-not-allowed") {
+                                    setError("AUTH ERROR: Anonymous login is not enabled in Firebase Console. (Authentication > Sign-in method > Anonymous)");
+                                } else {
+                                    setError("CONNECTION ERROR: " + e.message);
+                                }
+                            });
                         }
                     });
-                });
-                return () => unsubscribe();
+                    return () => unsubscribe();
+                } catch (e) {
+                    setError("CRITICAL INITIALIZATION FAILURE: " + e.message);
+                }
             }, []);
 
             // Handle Data Sync
             useEffect(() => {
                 if (!user) return;
-                const db = firebase.firestore();
-                
-                const unsubEmp = db.collection(ROSTER_COLLECTION).onSnapshot(snap => {
-                    const list = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-                    
-                    // Seeding logic with protective lock
-                    if (list.length === 0 && !isInitializing.current) {
-                        isInitializing.current = true;
-                        const batch = db.batch();
-                        INITIAL_ROSTER.forEach(name => {
-                            const newDoc = db.collection(ROSTER_COLLECTION).doc();
-                            batch.set(newDoc, { name });
-                        });
-                        batch.commit().catch(e => {
-                            console.error("Seeding failed", e);
-                            isInitializing.current = false;
-                        });
-                    }
-                    
-                    setEmployees(list);
-                    setLoading(false);
-                }, err => setError("Database Error: " + err.message));
+                try {
+                    const db = firebase.firestore();
+                    const unsubEmp = db.collection(ROSTER_COLLECTION).onSnapshot(snap => {
+                        const list = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+                        if (list.length === 0) {
+                            INITIAL_ROSTER.forEach(name => db.collection(ROSTER_COLLECTION).add({ name }));
+                        }
+                        setEmployees(list);
+                        setLoading(false);
+                    }, err => {
+                        console.error("Firestore error:", err);
+                        setError("DATABASE ACCESS ERROR: Check your Firestore rules. " + err.message);
+                    });
 
-                const unsubLog = db.collection(LOGS_COLLECTION).orderBy('timestamp', 'desc').onSnapshot(snap => {
-                    setLogs(snap.docs.map(d => ({ id: d.id, ...d.data() })));
-                });
+                    const unsubLog = db.collection(LOGS_COLLECTION).orderBy('timestamp', 'desc').onSnapshot(snap => {
+                        setLogs(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+                    });
 
-                return () => { unsubEmp(); unsubLog(); };
+                    return () => { unsubEmp(); unsubLog(); };
+                } catch (e) {
+                    setError("DATA SYNC FAILED: " + e.message);
+                }
             }, [user]);
 
             const employeeStats = useMemo(() => {
@@ -229,33 +227,6 @@
                     setPassError(true);
                     setPassInput("");
                 }
-            };
-
-            const cleanupDuplicates = async () => {
-                if (!confirm("This will find duplicate staff names and merge them. Continue?")) return;
-                const db = firebase.firestore();
-                const seen = new Set();
-                const toDelete = [];
-                
-                employees.forEach(emp => {
-                    if (seen.has(emp.name)) {
-                        toDelete.push(emp.id);
-                    } else {
-                        seen.add(emp.name);
-                    }
-                });
-
-                if (toDelete.length === 0) {
-                    alert("No duplicates found!");
-                    return;
-                }
-
-                const batch = db.batch();
-                toDelete.forEach(id => {
-                    batch.delete(db.collection(ROSTER_COLLECTION).doc(id));
-                });
-                await batch.commit();
-                alert(`Cleaned up ${toDelete.length} duplicate entries.`);
             };
 
             const handleLogPoint = async () => {
@@ -329,7 +300,7 @@
             if (loading) return (
                 <div className="h-screen flex flex-col items-center justify-center gap-4 bg-slate-50">
                     <div className="w-10 h-10 border-4 border-slate-900 border-t-transparent rounded-full animate-spin"></div>
-                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Synchronizing Data...</p>
+                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Syncing Cloud Database...</p>
                 </div>
             );
 
@@ -365,10 +336,10 @@
                                 </div>
                                 <div className="bg-white rounded-3xl border shadow-sm overflow-hidden overflow-x-auto">
                                     <table className="w-full text-left">
-                                        <thead><tr className="bg-slate-50 border-b text-[10px] font-black text-slate-400 uppercase tracking-widest"><th className="px-6 py-4">Name</th><th className="px-6 py-4">Score (P/N)</th><th className="px-6 py-4">Momentum</th><th className="px-6 py-4">Alerts</th><th className="px-6 py-4"></th></tr></thead>
+                                        <thead><tr className="bg-slate-50 border-b text-[10px] font-black text-slate-400 uppercase tracking-widest"><th className="px-6 py-4">Name</th><th className="px-6 py-4">Status / Score</th><th className="px-6 py-4">Momentum</th><th className="px-6 py-4">Alerts</th><th className="px-6 py-4"></th></tr></thead>
                                         <tbody className="divide-y">
                                             {filtered.map(emp => (
-                                                <tr key={emp.id} className="hover:bg-slate-50 group">
+                                                <tr key={emp.id || emp.name} className="hover:bg-slate-50 group">
                                                     <td className="px-6 py-5 font-bold text-slate-700 underline cursor-pointer hover:text-indigo-600" onClick={() => setViewingHistory(emp.name)}>{emp.name}</td>
                                                     <td className="px-6 py-5 flex gap-2"><span className="px-2 py-1 rounded bg-emerald-50 text-emerald-600 font-black text-[10px]">{emp.pos}P</span><span className={`px-2 py-1 rounded font-black text-[10px] ${emp.neg >= 3 ? 'bg-red-500 text-white shadow-sm' : 'bg-red-50 text-red-500'}`}>{emp.neg}N</span></td>
                                                     <td className="px-6 py-5"><Sparkline data={emp.journey} /></td>
@@ -396,7 +367,7 @@
                         )}
                     </main>
 
-                    {/* ENTRY MODAL */}
+                    {/* MODALS */}
                     {selectedEmployee && (
                         <div className="fixed inset-0 z-50 flex items-center justify-center p-6 bg-slate-900/60 backdrop-blur-sm overflow-y-auto">
                             <div className="bg-white w-full max-w-4xl rounded-[2.5rem] shadow-2xl my-auto overflow-hidden animate-in">
@@ -434,7 +405,7 @@
                                     <div className="flex gap-3 text-slate-300 items-center">
                                         <button onClick={() => handleReset(viewingHistory, 'positive')} title="Reset Positive"><Icon name="Reset" size={18} className="hover:text-emerald-500 transition-colors" /></button>
                                         <button onClick={() => handleReset(viewingHistory, 'negative')} title="Reset Negative"><Icon name="Reset" size={18} className="hover:text-red-500 transition-colors" /></button>
-                                        <button onClick={async () => { if(confirm("Remove member?")) { const target = employees.find(e => e.name === viewingHistory); if(target) { await firebase.firestore().collection(ROSTER_COLLECTION).doc(target.id).delete(); setViewingHistory(null); } }}}><Icon name="Trash" size={18} className="hover:text-red-500 transition-colors" /></button>
+                                        <button onClick={async () => { if(confirm("Remove member?")) { const db = firebase.firestore(); const target = employees.find(e => e.name === viewingHistory); if(target) { await db.collection(ROSTER_COLLECTION).doc(target.id).delete(); setViewingHistory(null); } }}}><Icon name="Trash" size={18} className="hover:text-red-500 transition-colors" /></button>
                                         <button onClick={() => setViewingHistory(null)} className="ml-2"><Icon name="X" size={24} className="hover:text-slate-900 transition-colors" /></button>
                                     </div>
                                 </div>
@@ -458,24 +429,9 @@
                     {showAddModal && (
                         <div className="fixed inset-0 z-50 flex items-center justify-center p-6 bg-slate-900/40 backdrop-blur-sm">
                             <div className="bg-white p-10 rounded-[3rem] shadow-2xl w-full max-w-md animate-in text-center">
-                                <h2 className="text-xl font-black uppercase mb-6 tracking-tighter">Manage Team</h2>
-                                
-                                <div className="mb-8">
-                                    <p className="text-[10px] font-black uppercase text-slate-400 mb-4 tracking-widest">Maintenance</p>
-                                    <button onClick={cleanupDuplicates} className="w-full flex items-center justify-center gap-2 p-3 bg-indigo-50 text-indigo-600 rounded-xl font-bold text-xs uppercase tracking-widest hover:bg-indigo-100 transition-all">
-                                        <Icon name="Sparkles" size={16} /> Cleanup Duplicates
-                                    </button>
-                                </div>
-
-                                <div className="mb-2">
-                                    <p className="text-[10px] font-black uppercase text-slate-400 mb-4 tracking-widest">Add New Member</p>
-                                    <input autoFocus type="text" className="w-full p-4 border rounded-2xl mb-4 font-bold outline-none focus:ring-2 focus:ring-slate-900 transition-all text-center uppercase" placeholder="Full Name" value={newEmployeeName} onChange={e => setNewEmployeeName(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleAddEmployee()} />
-                                </div>
-
-                                <div className="flex gap-3 mt-4">
-                                    <button onClick={() => setShowAddModal(false)} className="flex-1 p-4 rounded-2xl border font-bold text-xs uppercase tracking-widest hover:bg-slate-50 transition-all">Cancel</button>
-                                    <button onClick={handleAddEmployee} className="flex-1 bg-slate-900 text-white py-4 rounded-2xl font-black text-xs uppercase shadow-lg transition-all hover:bg-indigo-600">Add Staff</button>
-                                </div>
+                                <h2 className="text-xl font-black uppercase mb-6 tracking-tighter text-center">Add Staff Member</h2>
+                                <input autoFocus type="text" className="w-full p-4 border rounded-2xl mb-8 font-bold outline-none focus:ring-2 focus:ring-slate-900 transition-all text-center uppercase" placeholder="Full Name" value={newEmployeeName} onChange={e => setNewEmployeeName(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleAddEmployee()} />
+                                <div className="flex gap-3"><button onClick={() => setShowAddModal(false)} className="flex-1 p-4 rounded-2xl border font-bold text-xs uppercase tracking-widest hover:bg-slate-50 transition-all">Cancel</button><button onClick={handleAddEmployee} className="flex-1 bg-slate-900 text-white py-4 rounded-2xl font-black text-xs uppercase shadow-lg transition-all hover:bg-indigo-600">Confirm</button></div>
                             </div>
                         </div>
                     )}
