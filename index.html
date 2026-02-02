@@ -21,16 +21,18 @@
         .custom-scrollbar::-webkit-scrollbar { width: 5px; }
         .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
         .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+        .spin { animation: spin 1s linear infinite; }
+        @keyframes spin { to { transform: rotate(360deg); } }
     </style>
 </head>
 <body>
     <div id="root">
-        <!-- Static Loading Fallback -->
+        <!-- Persistent Fallback UI -->
         <div style="height: 100vh; display: flex; align-items: center; justify-content: center; text-align: center; color: #64748b;">
             <div>
                 <div style="width: 40px; height: 40px; border: 4px solid #e2e8f0; border-top-color: #0f172a; border-radius: 50%; animation: spin 1s linear infinite; margin: 0 auto 20px;"></div>
-                <p style="font-weight: 900; letter-spacing: -0.025em; font-size: 1.5rem; color: #0f172a;">BOOTING CONSOLE</p>
-                <style>@keyframes spin { to { transform: rotate(360deg); } }</style>
+                <p style="font-weight: 900; letter-spacing: -0.025em; font-size: 1.5rem; color: #0f172a;">LOADING CONSOLE</p>
+                <p id="error-check" style="font-size: 0.75rem; margin-top: 10px; opacity: 0.5;">If this persists, check browser console for errors.</p>
             </div>
         </div>
     </div>
@@ -84,7 +86,7 @@
             ]
         };
 
-        // --- 2. UI COMPONENTS ---
+        // --- 2. RESILIENT ICON COMPONENT ---
         const Icon = ({ name, size = 20, className = "" }) => {
             const icons = {
                 Lock: <Fragment><rect width="18" height="11" x="3" y="11" rx="2" ry="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" /></Fragment>,
@@ -131,7 +133,7 @@
 
         // --- 4. MAIN APP ---
         function App() {
-            // Check session storage for existing authentication
+            // Priority: Session memory check
             const [authenticated, setAuthenticated] = useState(() => sessionStorage.getItem('agency_authenticated') === 'true');
             const [passInput, setPassInput] = useState("");
             const [passError, setPassError] = useState(false);
@@ -152,56 +154,64 @@
             const [customReason, setCustomReason] = useState("");
             const [customType, setCustomType] = useState(null);
 
-            // Handle Authentication & Global Firebase Connect
+            // Robust Initialization Effect
             useEffect(() => {
-                try {
-                    if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
-                    const authInstance = firebase.auth();
-                    const unsubscribe = authInstance.onAuthStateChanged((u) => {
-                        if (u) {
-                            setUser(u);
-                        } else {
-                            authInstance.signInAnonymously().catch(e => {
-                                if (e.code === "auth/operation-not-allowed") {
-                                    setError("AUTH ERROR: Anonymous login is not enabled in Firebase Console. (Authentication > Sign-in method > Anonymous)");
-                                } else {
-                                    setError("CONNECTION ERROR: " + e.message);
-                                }
-                            });
+                let unsubscribeAuth = null;
+                let unsubEmp = null;
+                let unsubLog = null;
+
+                const startApp = async () => {
+                    try {
+                        // Init Firebase inside life cycle
+                        if (!firebase.apps.length) {
+                            firebase.initializeApp(firebaseConfig);
                         }
-                    });
-                    return () => unsubscribe();
-                } catch (e) {
-                    setError("CRITICAL INITIALIZATION FAILURE: " + e.message);
-                }
+                        
+                        const authInstance = firebase.auth();
+                        const dbInstance = firebase.firestore();
+
+                        // Setup Auth Listener
+                        unsubscribeAuth = authInstance.onAuthStateChanged(async (u) => {
+                            if (u) {
+                                setUser(u);
+                                // Setup Data Listeners after Auth
+                                unsubEmp = dbInstance.collection(ROSTER_COLLECTION).onSnapshot(snap => {
+                                    const list = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+                                    if (list.length === 0) {
+                                        INITIAL_ROSTER.forEach(name => dbInstance.collection(ROSTER_COLLECTION).add({ name }));
+                                    }
+                                    setEmployees(list);
+                                    setLoading(false);
+                                }, err => {
+                                    setError("DATABASE ACCESS ERROR: Check Firestore rules. " + err.message);
+                                });
+
+                                unsubLog = dbInstance.collection(LOGS_COLLECTION).orderBy('timestamp', 'desc').onSnapshot(snap => {
+                                    setLogs(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+                                });
+                            } else {
+                                authInstance.signInAnonymously().catch(e => {
+                                    if (e.code === "auth/operation-not-allowed") {
+                                        setError("AUTH DISABLED: Enable 'Anonymous' in Firebase Console.");
+                                    } else {
+                                        setError("CONNECTION FAILED: " + e.message);
+                                    }
+                                });
+                            }
+                        });
+                    } catch (e) {
+                        setError("INITIALIZATION ERROR: " + e.message);
+                    }
+                };
+
+                startApp();
+
+                return () => {
+                    if (unsubscribeAuth) unsubscribeAuth();
+                    if (unsubEmp) unsubEmp();
+                    if (unsubLog) unsubLog();
+                };
             }, []);
-
-            // Handle Data Sync
-            useEffect(() => {
-                if (!user) return;
-                try {
-                    const db = firebase.firestore();
-                    const unsubEmp = db.collection(ROSTER_COLLECTION).onSnapshot(snap => {
-                        const list = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-                        if (list.length === 0) {
-                            INITIAL_ROSTER.forEach(name => db.collection(ROSTER_COLLECTION).add({ name }));
-                        }
-                        setEmployees(list);
-                        setLoading(false);
-                    }, err => {
-                        console.error("Firestore error:", err);
-                        setError("DATABASE ACCESS ERROR: Check your Firestore rules. " + err.message);
-                    });
-
-                    const unsubLog = db.collection(LOGS_COLLECTION).orderBy('timestamp', 'desc').onSnapshot(snap => {
-                        setLogs(snap.docs.map(d => ({ id: d.id, ...d.data() })));
-                    });
-
-                    return () => { unsubEmp(); unsubLog(); };
-                } catch (e) {
-                    setError("DATA SYNC FAILED: " + e.message);
-                }
-            }, [user]);
 
             const employeeStats = useMemo(() => {
                 return employees.map(emp => {
@@ -269,10 +279,13 @@
                 } catch(e) { alert("Add failed: " + e.message); }
             };
 
+            // Error Screen UI
             if (error) return (
                 <div className="h-screen flex items-center justify-center p-6 bg-red-50 text-center">
                     <div className="max-w-md bg-white p-10 rounded-3xl shadow-xl border border-red-200 animate-in">
-                        <Icon name="AlertTriangle" className="text-red-500 mx-auto mb-4" size={48} />
+                        <div className="bg-red-50 text-red-500 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-6">
+                            <Icon name="AlertTriangle" size={32} />
+                        </div>
                         <h2 className="text-xl font-black text-slate-900 mb-2 uppercase tracking-tighter">System Error</h2>
                         <div className="text-sm text-slate-500 mb-6 bg-slate-50 p-4 rounded-xl text-left border font-medium overflow-auto max-h-40 custom-scrollbar leading-relaxed">
                             {error}
@@ -282,6 +295,7 @@
                 </div>
             );
 
+            // Login Screen UI
             if (!authenticated) return (
                 <div className="h-screen flex items-center justify-center bg-slate-900 p-6">
                     <div className="max-w-sm w-full bg-white p-10 rounded-[2.5rem] shadow-2xl text-center animate-in">
@@ -297,10 +311,11 @@
                 </div>
             );
 
+            // Syncing Screen UI
             if (loading) return (
                 <div className="h-screen flex flex-col items-center justify-center gap-4 bg-slate-50">
                     <div className="w-10 h-10 border-4 border-slate-900 border-t-transparent rounded-full animate-spin"></div>
-                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Syncing Cloud Database...</p>
+                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Synchronizing Data...</p>
                 </div>
             );
 
@@ -336,7 +351,7 @@
                                 </div>
                                 <div className="bg-white rounded-3xl border shadow-sm overflow-hidden overflow-x-auto">
                                     <table className="w-full text-left">
-                                        <thead><tr className="bg-slate-50 border-b text-[10px] font-black text-slate-400 uppercase tracking-widest"><th className="px-6 py-4">Name</th><th className="px-6 py-4">Status / Score</th><th className="px-6 py-4">Momentum</th><th className="px-6 py-4">Alerts</th><th className="px-6 py-4"></th></tr></thead>
+                                        <thead><tr className="bg-slate-50 border-b text-[10px] font-black text-slate-400 uppercase tracking-widest"><th className="px-6 py-4">Name</th><th className="px-6 py-4">Score (P/N)</th><th className="px-6 py-4">Momentum</th><th className="px-6 py-4">Alerts</th><th className="px-6 py-4"></th></tr></thead>
                                         <tbody className="divide-y">
                                             {filtered.map(emp => (
                                                 <tr key={emp.id || emp.name} className="hover:bg-slate-50 group">
@@ -367,7 +382,7 @@
                         )}
                     </main>
 
-                    {/* MODALS */}
+                    {/* ENTRY MODAL */}
                     {selectedEmployee && (
                         <div className="fixed inset-0 z-50 flex items-center justify-center p-6 bg-slate-900/60 backdrop-blur-sm overflow-y-auto">
                             <div className="bg-white w-full max-w-4xl rounded-[2.5rem] shadow-2xl my-auto overflow-hidden animate-in">
@@ -428,7 +443,7 @@
 
                     {showAddModal && (
                         <div className="fixed inset-0 z-50 flex items-center justify-center p-6 bg-slate-900/40 backdrop-blur-sm">
-                            <div className="bg-white p-10 rounded-[3rem] shadow-2xl w-full max-w-md animate-in text-center">
+                            <div className="bg-white p-10 rounded-[3rem] shadow-2xl w-full max-w-md animate-in">
                                 <h2 className="text-xl font-black uppercase mb-6 tracking-tighter text-center">Add Staff Member</h2>
                                 <input autoFocus type="text" className="w-full p-4 border rounded-2xl mb-8 font-bold outline-none focus:ring-2 focus:ring-slate-900 transition-all text-center uppercase" placeholder="Full Name" value={newEmployeeName} onChange={e => setNewEmployeeName(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleAddEmployee()} />
                                 <div className="flex gap-3"><button onClick={() => setShowAddModal(false)} className="flex-1 p-4 rounded-2xl border font-bold text-xs uppercase tracking-widest hover:bg-slate-50 transition-all">Cancel</button><button onClick={handleAddEmployee} className="flex-1 bg-slate-900 text-white py-4 rounded-2xl font-black text-xs uppercase shadow-lg transition-all hover:bg-indigo-600">Confirm</button></div>
